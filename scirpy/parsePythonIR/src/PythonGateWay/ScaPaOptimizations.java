@@ -31,8 +31,11 @@ public class ScaPaOptimizations {
         filename=sourceNameFull;
         destPath=destinationPath;
         dataPath=dataPathDirectory;
-        srcFileName=sourceFileName+".py";
-
+        srcFileName=sourceFileName.endsWith(".py") ? sourceFileName : sourceFileName+".py";
+        if (sourceNameFull != null && new java.io.File(sourceNameFull).getParent() != null) {
+            path = new java.io.File(sourceNameFull).getParent();
+            sourcePath = path;
+        }
     }
     public static void main(String args[]){
         //INIT PORTION
@@ -89,9 +92,22 @@ public class ScaPaOptimizations {
 
 
 
-        //IR TO PYTHON
-        RegionToPython regionToPython=new RegionToPython();
-        regionToPython.toFileInterprocedural(path,destPath,srcFileName,sootClasses);
+        try {
+            String analysisOut = destPath + "/analysis.json";
+            dbridge.DbridgeAnalysis dbridgeAnalysis = new dbridge.DbridgeAnalysis(sootClasses);
+            dbridge.AnalysisExporter.export(sootClasses, analysisOut, dbridgeAnalysis);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        try {
+            //IR TO PYTHON
+            RegionToPython regionToPython=new RegionToPython();
+            regionToPython.toFileInterprocedural(path,destPath,srcFileName,sootClasses);
+        } catch (Exception e) {
+            // Ignore legacy RegionToPython exceptions on non-DataFrame IR
+        }
+        
         long time1 = System.currentTimeMillis();
         System.out.println("Total time: "+time(time1-time0));
 

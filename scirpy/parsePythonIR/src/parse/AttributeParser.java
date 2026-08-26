@@ -11,6 +11,9 @@ public class AttributeParser {
     public String baseName = null;
 
     public IExpr parseAttribute(JSONObject attributeObj) {
+        if (attributeObj == null) {
+            return new Name(0, 0, "null", ir.expr.Expr_Context.Load);
+        }
         int lineno=0,col_offset=0;
         IExpr expr=null;
         Attribute value=null;
@@ -128,9 +131,13 @@ public class AttributeParser {
             return dictParser.parseDict();
             //return gep.getNameConstant();
         }
+        else if(attributeType.equals("ListComp")){
+            ListCompCParser listParser=new ListCompCParser();
+            return listParser.parseList(attributeObj);
+        }
         else{
             System.out.println(attributeType+ " still Not implemented in func for functional call on line no="+lineno);
-            exit(1);
+            throw new RuntimeException(attributeType + " not implemented in AttributeParser");
         }
         //should never reach here
         return expr;

@@ -441,7 +441,8 @@ public class AssignmentStmtSoot extends JAssignStmt implements IStmt {
 
 
     }
-    public List getUseBoxes() {
+    @Override
+    public List<ValueBox> getUseBoxes() {
         return usedVars;
     }
 

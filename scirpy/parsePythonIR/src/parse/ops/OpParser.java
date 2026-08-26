@@ -12,7 +12,6 @@ import parse.*;
 public class OpParser {
     JSONObject opObj;
 
-
     public OpParser(JSONObject opObj) {
         this.opObj = opObj;
     }
@@ -44,22 +43,32 @@ public class OpParser {
                 GenericExpressionParser gepc=new GenericExpressionParser();
                 expr=gepc.getConstant(opObj);
                 break;
-            //2024 sigmod bhu
-//            case "Call":
+            case "Name":
+                GenericExpressionParser gepn=new GenericExpressionParser();
+                expr=gepn.getName(opObj);
+                break;
+            case "UnaryOp":
+                UnaryOpParser uop=new UnaryOpParser(opObj);
+                expr=uop.getUnaryOp();
+                break;
+            case "Attribute":
+                AttributeParser ap=new AttributeParser();
+                expr=ap.parseAttribute(opObj);
+                break;
+            case "Subscript":
+                SubscriptParser sp=new SubscriptParser();
+                expr=sp.parseSubscript(opObj);
+                break;
             case "Call":
                 GetCall getCall=new GetCall();
                 Call call=getCall.GetFunctionalCall(opObj);
                 call.setAst_type(ExprAST.Call);
-//                call.setLineno(");
-//                call.setCol_offset(col_offset);
                 expr=call;
                 break;
             default:
                 System.out.println(opType +" not implemented in OpParser");
-                System.exit(0);
+                throw new RuntimeException(opType + " not implemented in OpParser");
         }
         return expr;
     }
 }
-
-

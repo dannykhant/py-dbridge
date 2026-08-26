@@ -7,7 +7,10 @@ public enum OpsType {
     Eq("=="),
     LtE("<="),
     In("in"),
-    GtE(">=");
+    GtE(">="),
+    Is("is"),
+    IsNot("is not"),
+    NotIn("not in");
 
     private String custom;
     OpsType(String custom) {

@@ -64,8 +64,7 @@ public class SimplifiedIf {
 
         }
         else {
-            System.out.println("Condition encountered not implemented for simplfying");
-            System.exit(1);
+            return test;
         }
         //should never reach here
         return iExpr;

@@ -53,12 +53,17 @@ public class IRParser {
         // method = new SootMethod("main", Arrays.asList(new Type[] {ArrayType.v(RefType.v("java.lang.String"), 1)}),VoidType.v(), Modifier.PUBLIC | Modifier.STATIC);
         // JPMethod jpMethod=new JPMethod("main",parameterTypes , null);
         //NEW METHOD FOR SOOTCLASS
-        if(methodName.equals("main")){
+        if(methodName != null && methodName.equals("main")){
             jpMethod = new JPMethod("main",Arrays.asList(new Type[] {ArrayType.v(RefType.v("java.lang.String"), 1)}),VoidType.v(), Modifier.PUBLIC | Modifier.STATIC);
         }
         else{
-
-            jpMethod=new JPMethod(methodName,  parameterTypes, null);
+            if (parameterTypes == null) {
+                parameterTypes = new java.util.ArrayList<>();
+            }
+            if (methodName == null) {
+                methodName = "body_block";
+            }
+            jpMethod=new JPMethod(methodName, parameterTypes, soot.VoidType.v(), soot.Modifier.PUBLIC);
         }
 
 
