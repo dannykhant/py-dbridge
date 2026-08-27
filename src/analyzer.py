@@ -73,17 +73,20 @@ def run_analysis(ast_json: dict, source_path: Path, source_code: str | None = No
     opt_code_path = None
     parsed_facts = None
     try:
+        import json
         from src.scirpy_bridge import run_scirpy_analysis
-        from scirpy_interface.source_transformer import export_json
-        
+        from src.ast_to_json import ast_to_dict
+
         import uuid
         project_root = Path(__file__).resolve().parents[1]
         call_id = uuid.uuid4().hex[:8]
-        tmp_dir = project_root / "sandbox" / ".scirpy_tmp" / f"{source_path.stem}_{call_id}"
+        tmp_dir = project_root / ".scirpy_tmp" / f"{source_path.stem}_{call_id}"
         tmp_dir.mkdir(parents=True, exist_ok=True)
-        
+
         json_path = tmp_dir / f"{source_path.stem}.json"
-        json_path.write_text(export_json(tree, True), encoding="utf-8")
+        json_path.write_text(
+            json.dumps(ast_to_dict(tree), indent=2), encoding="utf-8"
+        )
         
         scirpy_result = run_scirpy_analysis(
             json_ast_path=json_path,
