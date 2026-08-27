@@ -91,17 +91,20 @@ class TestEqSQLIntegration(unittest.TestCase):
         if sb._gateway:
             sb._shutdown_gateway()
 
-        sql1 = "SELECT count(*) FROM parts WHERE category = ?"
+        sql1 = "SELECT count(*) FROM parts WHERE category = ? GROUP BY category"
         opt1 = eqsql_optimize_query(sql1, "sqlite")
         self.assertIn("GROUP BY category", opt1)
+        self.assertIn("category IN ({})", opt1)
 
-        sql2 = "SELECT sum(price) FROM parts WHERE category = ?"
+        sql2 = "SELECT sum(price) FROM parts WHERE category = ? GROUP BY category"
         opt2 = eqsql_optimize_query(sql2, "sqlite")
         self.assertIn("GROUP BY category", opt2)
+        self.assertIn("category IN ({})", opt2)
 
-        sql3 = "SELECT avg(rating) FROM parts WHERE category = ?"
+        sql3 = "SELECT avg(rating) FROM parts WHERE category = ? GROUP BY category"
         opt3 = eqsql_optimize_query(sql3, "sqlite")
         self.assertIn("GROUP BY category", opt3)
+        self.assertIn("category IN ({})", opt3)
 
         sql4 = "SELECT count(a) + 1 FROM parts WHERE category = ?"
         opt4 = eqsql_optimize_query(sql4, "sqlite")
