@@ -1,0 +1,1655 @@
+arXiv:2501.08207v1 [cs.DB] 14 Jan 2025
+
+Efficient Dataframe Systems: Lazy Fat Pandas on a Diet
+Bhushan Pal Singh
+
+Priyesh Kumar
+
+IIT Bombay
+singhbhushan@cse.iitb.ac.in
+
+IIT Bombay#
+priyeshkumar9875@gmail.com
+
+Chiranmoy Bhattacharya
+
+S. Sudarshan
+
+IIT Bombay∗
+chiranmoy358@gmail.com
+
+IIT Bombay
+sudarsha@cse.iitb.ac.in
+
+ABSTRACT
+Pandas is widely used for data science applications, but users often
+run into problems when datasets are larger than memory. There
+are several frameworks based on lazy evaluation that handle large
+datasets, but the programs have to be rewritten to suit the framework, and the presence of multiple frameworks complicates the life
+of a programmer.
+In this paper we present a framework that allows programmers
+to code in plain Pandas; with just two lines of code changed by
+the user, our system optimizes the program using a combination of
+just-in-time static analysis, and runtime optimization based on a
+lazy dataframe wrapper framework. Moreover, our system allows
+the programmer to choose the backend. It works seamlessly with
+Pandas, Dask, and Modin, allowing the choice of the best-suited
+backend for an application based on factors such as data size. Performance results on a variety of programs show the benefits of our
+framework.
+
+1
+
+INTRODUCTION
+
+Python is widely used for data science applications, and in particular dataframe-based libraries and frameworks have become the
+default model for many data science applications. Pandas is the
+most popular framework among these and is the tool of choice for
+applications that use smaller datasets that fit in the available system memory. To address the needs of applications that have larger
+datasets that do not fit in memory, several scalable frameworks
+have been created, such as Dask [14], Modin [8], PySpark [12],
+Magpie [6], among others. Some frameworks such as Dask and
+Vaex are lazy evaluation frameworks that create a task graph lazily,
+optimize it, and then execute it when results are needed. Others
+like Modin support eager evaluation.
+Many users develop their applications using Pandas, and test
+them on small datasets; performance issues including out-of-memory
+issues, are not obvious until much larger datasets are used. Even if
+production datasets fit in memory at a point in time, the growth of
+data sizes often causes problems at a later point in time.
+While users can avoid these problems by using scalable frameworks, there are several challenges. Frameworks based on lazy
+evaluation can speed up evaluation by using optimizations of the
+task graph, but require users to write the code in a manner suitable
+for lazy evaluation. For example, explicit forcing of computation is
+required before printing a lazily computed dataframe. Availability
+of a large number of frameworks coupled with variations in their
+# Current Affiliation: Dream11.
+∗ Current Affiliation: Fujitsu, India.
+
+User Application
+
+Raw Dataset
+
+JIT Static Analysis
+Static Analysis Optimizations
+- Projection Pushdown
+- Dropped Column Analysis
+- Metadata Analysis and Utilization
+- Size Estimation
+
+MetaStore
+
+-
+
+Column Types
+Column Range
+Column Selectivity
+Row size
+No of rows
+
+Code transformations for Lazy Runtime
+
+Lazy and Scalable Runtime
+Run Time Optimization
+- Predicate Pushdown
+- Lazy Print
+- Computation for External APIs
+- Common Computation Reuse
+- Metadata Analysis and Utilization
+
+Runtime Executor Selection
+
+Figure 1: Overview of Our Lazy Fat Pandas System
+
+APIs, including lack of support for some Pandas features, further
+complicate the work of the user. Finally, which framework is optimal for an application depends on factors such as data size. Thus,
+a significant burden is placed on the programmer to choose and
+use an appropriate framework. This may be contrasted with the
+declarative specifications and automated optimization supported
+by languages such as SQL.
+In this paper, we propose an efficient and scalable dataframe
+system, which we call Lazy Fat Pandas (LaFP), which addresses
+the above-mentioned challenges faced by the data science user
+community.
+Figure 1 provides an overview of our system. Users write programs in Pandas, and can then use our optimization framework
+with a mere change in an import statement and one other function call. Using LaFP, the users need not worry about the details
+of different back-end executors, or their APIs, or even about lazy
+evaluation; users can write their application in the plain Pandas
+APIs, and leave the task of optimization to LaFP.
+Our system combines optimization using Just-in-Time (JIT) static
+analysis and rewriting of Pandas programs, coupled with a lazy
+runtime that performs a variety of run-time optimizations, allowing
+optimization to combine the best of static and run-time optimizations.
+The specific technical contributions of this paper include the
+following:
+
+Bhushan Pal Singh, Priyesh Kumar, Chiranmoy Bhattacharya, and S. Sudarshan
+
+(1) Our lazy runtime wrapper, Lazy Fat Pandas (LaFP), allows
+substitution of invocations of Pandas API calls by invocations of lazy versions of the same calls in LaFP. Lazy
+evaluation allows the construction of a DAG of operators
+which can be optimized before execution, when results are
+needed.
+LaFP supports the choice of different back-end executors
+(currently, Dask and Modin in addition to Pandas), and
+executes the operator DAG on the chosen back-end framework. When a lazy back-end is used, LaFP creates an operator DAG in the backend framework, whereas if an eager
+back-end is chosen LaFP invokes individual operations in
+sequence to get the required result.
+LaFP performs a number of runtime optimizations, motivated by transformations used in query optimizations, on
+these programs. Examples include Predicate Push Down,
+Forced Computation for External Function Modules, and
+Common Computation Reuse. Lazy frameworks like Dask
+can subsequently perform their own optimizations.
+LaFP also provides novel lazy implementations of operations that are not part of the Pandas framework, in particular Lazy Print. Lazy Print helps postpone forcing of
+evaluation beyond the occurrences of print statements, and
+can improve performance.
+(2) We present an optimization architecture based on static
+analysis, to perform source-to-source transformation of
+Python programs. The Python source programs is first converted to the SCIRPy intermediate representation, which
+we have created, which is compatible with the Soot static
+analysis framework [2]. Rewriting is performed based on
+static analysis, and the IR is converted back to Python for
+execution. Our optimizer also rewrites Pandas function invocations to optimally use our Lazy Fat Pandas framework,
+which enables a number of run-time optimizations.
+(3) We define a novel static analysis and optimization methodology that utilizes just-in-time (JIT) static analysis. Our
+approach requires only the addition of a single function call
+to the program, which uses reflection to find and rewrite
+the source code of the program, and replace the execution
+of the original program by the execution of the optimized
+rewritten program. No changes are required to the outerlevel systems that invoke the Python programs, greatly
+simplifying the task of deploying the optimizations.
+(4) We present an optimization architecture that combines optimization based on static analysis with run-time optimization,
+to get the best of two worlds. Static analysis allows our
+optimizer to look ahead to predict which data frames are
+live, and what parts of the dataframe (based on column
+selections) will get used later in the program, beyond what
+a run-time optimizer based on lazy frameworks can do. The
+run-time optimizer based on the lazy framework allows us
+to implement a variety of optimizations akin to a database
+query optimizer using information that is not available at
+compile time.
+We also implement a system for gathering metadata (types
+and statistics) about data sets for use in optimization.
+
+import pandas as pd
+#other import stmts
+#rest of the program
+
+import lazyfatpandas.pandas as pd
+#other import stmts
+pd.analyze()
+#rest of the program
+
+Figure 2: Code changes for Using Lazy Fat Pandas Framework
+(5) Our LaFP library supports diverse back-ends, such as Pandas, Dask and Modin.
+The backends differ in the support for specific Pandas API
+functionality, but more fundamentally Dask does not support ordering of rows in a dataframe. If a chosen back-end
+does not support a specific Pandas API functionality, LaFP is
+able to convert data from the back-end representation back
+to Pandas, to execute the original Pandas function. Thus
+the user need not worry about the differences between
+back-ends (beyond the lack of row ordering in Dask), or
+their specific limitations. The choice of backend is currently
+made as a program configuration, but we are working on
+automating the choice in future, based on factors such as
+size of the datasets and row order dependence.
+(6) We have implemented the LaFP framework, along with
+static and run-time optimizations. Our performance studies
+show that our methodology can significantly improve the
+performance of such programs with up to 19X speedup of
+execution time, and allow execution of 9 out of 10 programs
+on a 12.6 GB dataset, where only 2 could run using Pandas.
+While there are several systems that support lazy runtimes with
+optimization, such as Dask and Pandas on Spark, and a few systems that perform code rewriting (see Section 4 for details), to our
+knowledge, no other system performs such combined optimization.
+Our performance study illustrates the benefits of such combined
+optimization.
+The rest of the paper is organized as follows. Section 2 describes
+our system architecture. Section 3 describes the optimizations implemented in our system. Section 4 describes related work. Section 5
+presents a performance study showing the benefits of our approach,
+while Section 6 concludes the paper.
+
+2
+
+ARCHITECTURE
+
+Figure 1 shows an overview of our proposed framework and the
+static and runtime optimizations implemented in our system.
+Users can run existing Pandas-based programs using our Lazy
+Fat Pandas (LaFP) framework with minimal changes. As highlighted
+in Figure 2, the user just replaces an import of pandas by an import
+of our lazyfatpandas library, and adds a call to pd.analyze(). Our
+lazyfatpandas API supports the Pandas API.1
+
+2.1
+
+Static Analysis and Rewriting Framework
+
+Our framework first converts programs to a lower-level internal
+representation (IR), then performs static analysis, and based on the
+static analysis results, it rewrites the program to optimize evaluation.
+1 Although we have not yet implemented all the API functions, the bulk of the widely
+
+used API functionality is supported, and we are adding support for further API calls.
+
+Efficient Dataframe Systems: Lazy Fat Pandas on a Diet
+
+We use Soot [2], a Java-based framework for static analysis of
+Python programs. Soot natively supports analysis of Java byte code
+by translating it to one of several supported IRs. We have extended
+Jimple IR of Soot to represent Python based programs. We call this
+extended IR SCIRPy. SCIRPy is explained in detail in Section 2.2.
+Python source is parsed into an abstract syntax tree (AST) using an existing parser (written in Python), and the AST is then
+translated into a JSON (JavaScript Object Notation) object. This
+JSON object is then read by a Java program that creates a SCIRPy
+representation of the program.
+Static analysis is then carried out using Soot on the SCIRPy, and
+based on the analysis, optimizations are carried out by transforming the IR, as discussed in Section 2.3. Finally, the optimized IR is
+converted back to Python code, which is subsequently executed.
+We note that static analysis cannot handle dynamically generated
+code that is executed using the exec() function, and static analysis of
+Python, has other challenges such as not knowing which overloaded
+function is being called due to lack of static typing. However, Pandas
+applications typically do not use features that cause such issues,
+and our analysis is conservative.
+
+2.2
+
+Intermediate Representation
+
+Our Soot-based intermediate representation, SCIRPy, is compatible
+with the Python Abstract Syntax Tree (AST) representation. This
+allows the representation of Python’s code statements in Sootcompatible units (statements). Most of the representations in the IR,
+such as if statements, assignment statements, etc. extend constructs
+from the Jimple IR of Soot, making it easy to use the built-in analysis
+functionality of Soot. SCIRPy maintains compatibility with Soot by
+extending Soot’s constructs like Soot’s class, method, and body for
+Python.2
+The control flow graph (CFG) is a representation of the flow of
+control within a program [10]. It represents various paths that the
+program execution may take. It is a directed graph in which every
+node represents a Basic Block (BB). A basic block is a sequential
+fragment of code without any branch or loop. CFGs are generally
+constructed on intermediate representation (IR). Our implementation constructs CFG from SCIRPy.
+Data flow analysis [7] is a technique to identify how a program
+or a method manipulates its data, and is performed on the control
+flow graph. We define and use live attribute analysis (Section 3.1)
+and live dataframe analysis (Section 3.5), which are based on data
+flow analysis.
+Based on the static analysis results, the program is rewritten to
+optimize execution, and then converted back to Python for execution. To convert programs from SCIRPy back to Python, we first
+convert the CFG-based IR to another intermediate representation
+known as program regions, which represent the hierarchical structure of block-structured programs. Regions could be basic block
+regions, loop regions, branch (if-then-else) regions, or sequential
+regions, each of which could contain subregions. Creating regions
+from the graph based SCIRPy representation is done using techniques described in [5], which are also used in [3]. The region-based
+representation is then translated to Python.
+
+2 Extending the IR to handle exceptions is a part of future work.
+
+i m p o r t l a z y f a t p a n d a s . p a n d a s a s pd
+pd . a n a l y z e ( ) # t r a n s f e r c o n t r o l t o LaFP
+3 d f = pd . r e a d _ c s v ( ' d a t a . c s v ' , p a r s e _ d a t e s =[ '
+tpep_pickup_datetime ' ] ) # fetch data
+4 d f = d f [ d f . f a r e _ a m o u n t > 0 ] # f i l t e r bad rows
+5 # add f e a t u r e s
+6 d f [ ' day ' ] = d f . t p e p _ p i c k u p _ d a t e t i m e . d t . dayofweek
+7 # aggregation
+8 d f = d f . groupby ( [ ' day ' ] ) [ ' p a s s e n g e r _ c o u n t ' ] . sum ( )
+9 p r i n t ( df ) # use dataframe
+1
+2
+
+Figure 3: Sample Program
+
+i m p o r t l a z y f a t p a n d a s . p a n d a s a s pd
+from l a z y f a t p a n d a s . f u n c i m p o r t p r i n t # LaFP ' s
+lazyPrint
+3 SO_columns = [ ' p i c k u p _ d a t e t i m e ' , ' p a s s e n g e r _ c o u n t ' ,
+' fare_amount ' ]
+4 d f = pd . r e a d _ c s v ( ' d a t a . c s v ' , u s e c o l s = SO_columns )
+5 df = df [ df . fare_amount > 0]
+6 d f [ ' day ' ] = d f . p i c k u p _ d a t e t i m e . d t . dayofweek
+7 d f = d f . groupby ( [ ' day ' ] ) [ ' p a s s e n g e r _ c o u n t ' ] . sum ( )
+8 print ( df )
+9 pd . f l u s h ( ) # c a l l s compute ( )
+1
+2
+
+Figure 4: Optimized Version of Program in Figure 3
+
+2.3
+
+Compile Time Optimizations
+
+Pandas programs can be optimized by manually rewriting them
+using appropriate API features. However, many users are not aware
+of these features. The availability of multiple frameworks and differences in their APIs further complicates the problem. Our framework
+performs a variety of optimizations during compile time, i.e. the
+static analysis and rewrite phase.
+Optimization transformations can be applied only if certain preconditions are met. Static analysis provides information about the
+preconditions, as well as other information needed to carry out the
+transformations.
+Once the source is transformed to SCIRPy, our system can utilize
+static analysis tool-sets provided by Soot. For example, Soot’s control flow graph (CFG) module is used to construct the CFG of Python
+programs. Live variable analysis (LVA) [10], which is provided by
+Soot, can be used to find which variables are live at any point in the
+program. A variable is live at a program point if there exists a path
+from that point to the exit of the program along which the current
+value of the variable may be used. We use a modified version of live
+variable analysis, called live attribute analysis (LAA), which checks
+liveness of individual attributes (columns) of dataframes. Even if
+a dataframe is live at a program point, some of its columns may
+not be used subsequently and are thus not live. The result of the
+analysis is used to perform column selection optimization. Details
+are discussed in Section 3.
+To understand the benefits of LAA, consider the Pandas program
+in Figure 3 (from [6]), which fetches data from files into in-memory
+dataframes. Then different computations like data filtering, feature
+
+Bhushan Pal Singh, Priyesh Kumar, Chiranmoy Bhattacharya, and S. Sudarshan
+
+function pd.analyze(())
+source_file ← get_source_code()
+SCIRPy ← python_to_SCIRPy(source_file)
+opt_SCIRPy ← static_analysis_opt(SCIRPy)
+/* Performs Static optimization + code rewrite to
+support runtime optimization */
+opt_code ← SCIRPy_to_python_opt(opt_SCIRPy)
+executor (opt_code)
+end function
+
+compute
+print
+
+sum
+
+groupby day
+
+get_item
+passenger_count
+
+set_item day
+dayofweek
+
+Figure 5: Just-in-Time Static Analysis
+addition, and aggregation are performed on it. The optimized version (output of static analysis phase) of the program is as shown in
+Figure 4.
+The original program fetches all 22 columns from the test dataset.
+Only 3 of these are used in the program, which is inferred by
+live attribute analysis, as discussed in Section 3.1. The optimized
+program after applying the column selection optimization fetches
+only the required 3 columns, by passing them in the usecols option
+to read_csv.
+
+2.4
+
+get_item [filter]
+greater_than
+get_item
+fare_amount
+
+0
+
+read_csv
+
+Just-in-Time Static Analysis
+
+One of the novel contributions of our approach is the Just-in-Time
+(JIT) static analysis, which performs static analysis at the start of
+program execution. The static analysis and optimization is initiated
+by calling the analyze() method of our lazyfatpandas library as the
+very first step of the program.
+Our JIT approach provides an easy and convenient way for users
+to perform static-analysis based optimizations. Other static analysis
+tools require users to perform static analysis and program rewrite
+as a separate phase, following which the rewritten program must
+be executed. In contrast, our approach does not require any change
+in the flow of code optimization/execution.
+The process of JIT static analysis is described in Figure 5. The
+pd.analyze() method is called before execution of user code. The
+analyze() method identifies the source program code, parses it,
+converts it to SCIRPy, and performs static analysis and compile
+time optimizations. Further, code transformations are performed
+during this phase to enable run time/lazy optimizations discussed
+in Section 3. The optimized IR is converted back to Python and
+executed.
+
+2.5
+
+get_item
+tpep_pickup_datetime
+
+Lazy Evaluation and Task Graphs
+
+In eager evaluation, an expression is evaluated as soon as it is
+reached during program execution. In contrast, in a lazy evaluation
+strategy, when an expression is reached during program execution, instead of evaluating it, an expression node is created, and
+added to a task graph. The task graph is evaluated only when it is
+needed, by calling a function that forces the evaluation to occur.
+Spark and Dask, as well as our Lazy Fat Pandas (LaFP) framework,
+are examples of systems based on lazy evaluation of dataframes;
+evaluation is forced only when a function such as compute() is
+called to actually execute the operations.
+A task graph is a directed acyclic graph (DAG) in which the nodes
+represent a computational task or operation and the edges denote
+the precedence constraints among these computational tasks. The
+
+Figure 6: LaFP Task graph of the Program in Figure 3
+task graph for the program in Figure 3 is shown in Figure 6. An
+edge (𝐴 → 𝐵) represents that the task 𝐵 depends on task 𝐴. Such
+an edge may be created when the result of the operation at node B
+is an input for the operation at node A, and is also used to enforce
+output order for lazy print statements.3
+The optimized source code has calls to lazy versions of the Pandas API calls, defined in our Lazy Fat Pandas (LaFP) framework,
+which supports a (subset of) the Pandas DataFrame API, but using
+the LaFPDataFrame. A call to the LaFP API function does not immediately execute the operation. Instead, each operation creates a
+new FatDataFrame object, which is then linked to the task graph
+based on its inputs. The lowest level operation is generally a read
+data operation which represents a lazy DataFrame created lazily
+from the input dataset.
+The task graph is executed only when an operation result needs
+to be passed to an operation that needs a materialized (non-lazy)
+data frame, or at the end of the program, when computation can
+no longer be deferred.
+A key motivation for lazy evaluation is that task graphs can be
+transformed to optimize evaluation, at runtime, just before being
+executed; most lazy frameworks support such optimization. For
+example, redundant nodes (expressions) can be pruned to avoid
+computations that are not used, and nodes can be re-arranged for
+early data filtering (similar to predicate pushdown) to improve
+performance. Optimizations implemented in LaFP are discussed
+later in Sections 2.6 and 3.
+Once run-time optimizations are performed in LaFP, we have
+an optimized task graph, which is then executed using any of the
+backends supported by LaFP including Pandas itself, Dask and
+Modin. LaFP allows the backend to be chosen in the program.
+3 The direction of the edge follows the convention for task graphs and dependency
+
+graphs, although the flow of data is in the opposite direction.
+
+Efficient Dataframe Systems: Lazy Fat Pandas on a Diet
+
+For small datasets that fit in memory, Pandas is usually faster
+than the lazy frameworks and is the preferred choice. In this case
+LaFP optimizations help speed up the program compared to directly
+running it on Pandas. If the backend chosen is lazy, it may perform
+its own optimizations; in that case the optimizations performed
+by LaFP complement the backend optimizations. (We are currently
+working on automating the choice of backend based on memory
+usage estimates.)
+One of the distinctive features of our approach compared to just
+using a lazy framework is that it is capable of utilizing information
+generated using JIT static analysis phase. This information provides
+look-ahead beyond points where lazy computation cannot be deferred further, allowing us to detect for example that some columns
+are not used later in the program and therefore can be projected
+away, or not even computed earlier in the execution. Static-analysis
+based rewriting also allows our framework to detect which API calls
+can handle LaFP data frames; all other API calls default to Pandas
+dataframes, and our optimizer introduces calls to force computation
+before invoking such APIs.
+
+2.6
+
+Run-Time Optimizations and Execution
+
+LaFP allows the task graph to be executed on any one of the supported backends, which are currently Pandas, Dask, and Modin,
+with the default being Dask. The user can select the required backend by just adding one line of code, for example:
+pd.BACKEND_ENGINE=pd.BackendEngines.PANDAS
+The choice of the backend significantly impacts execution time
+and memory usage for a program. Pandas and Modin use an eager
+evaluation approach with all data required to be in memory (or
+distributed memory in the case of Modin). In contrast, Dask employs
+lazy evaluation, and supports data sizes larger than memory.
+Support for multiple back-ends for the same program provides
+the users with an opportunity to select the best framework applicable for their program, depending on factors such as the size and type
+of datasets, available hardware resources etc. The optimal back-end
+can also be identified in a cost-based manner, implementation of
+which is a part of future work.
+Traditional databases perform several optimizations when a
+query is submitted and execute it based on an efficient query plan
+performing only the necessary computation. Lazy frameworks such
+as Spark and Dask also optimize the task DAG before execution.
+Examples of optimizations include removal of unused computations, pushing selections and projections, and fusing of operators
+to reduce data movement.
+Similarly, the runtime module of LaFP performs several optimizations in the task graph (DAG) at run time. Optimizations include Predicate Push Down, Redundant operations elimination,
+Lazy Print etc that offer significant performance benefits. Metadata
+is also used, when available, to reduce storage costs by making use
+of more space efficient data types. Computation of metadata is done
+as a background task.
+LaFP also offers the option to use any one of the supported
+back-end executors. The optimized task graph is executed using
+the selected executor. When a lazy backend such as Dask is chosen,
+the optimizations performed in LaFP complement optimizations in
+the lazy backend. When an eager backend such as Pandas itself or
+
+Modin is chosen, the backend cannot perform optimization across
+nodes, and thus LaFP optimizations are even more important.
+The execution of the task graph in LaFP is done as follows, for the
+case where the backend is eager. The LaFP task graph is executed in
+topological order. After evaluating a task graph node, the result is
+stored in a field called result. This result field is cleared once all
+its dependent nodes have been evaluated, and the result is no longer
+needed, minimizing memory usage. This is managed by counting
+the in-degree of each task graph node before executing the task
+graph and decrementing the count after a node is used to generate
+another node’s result. When the count reaches zero, the result
+field is cleared, allowing Python’s garbage collector to reclaim the
+memory. As the task graph is executed from bottom to top, the
+results of lower nodes, which have been evaluated and used, are
+deleted to keep memory usage to a minimum.
+For example, consider the task graph in Figure 6, read_csv is
+executed first, and the result is stored in the node. This result is
+cleared after its dependent nodes get_item fare_amount, and
+get_item [filter], have been executed. Finally, the result of
+the node on which compute was called is returned. If compute() is
+called on a print node, then None is returned.
+In case the backend is a lazy framework such as Dask, instead
+of executing the operation when traversing the task graph, the
+API call is transformed to the compatible API call for the selected
+lazy backend. The execution of the operations on the lazy backend
+is initiated when root of the task graph is reached, or when the
+results are required for an intermediate operation such as print.
+Nodes whose results are used more than once can be persisted using
+persist() on dask dataframe, avoiding recomputation for subsequent
+uses.
+For backends other than Pandas, LaFP performs some transformations to deal with incompatibilities between Pandas and the
+selected backend. For example, pandas ’read_csv’ API call supports
+a keyword argument ’index_col’ to specify the column(s) to use as
+row labels for the Dataframe. Dask Dataframe does not support this
+keyword argument. However, similar behavior can be obtained by
+making another API call ’set_index’ on the Dask Dataframe after
+’read_csv’. Our framework is capable of identifying such inconsistencies across multiple frameworks. Our framework performs this
+additional operation in Dask transparently such that the end result
+is the same after the execution of ’read_csv’ API calls irrespective
+of the back-end.
+
+3
+
+STATIC AND RUNTIME OPTIMIZATIONS
+
+In this section, we discuss a number of static and run time optimizations implemented in LaFP. These optimizations perform holistic
+optimization of the program. These optimizations are performed in
+two settings.
+• By rewriting of imperative programs based on static analysis
+• By optimizing the generated task graph at runtime, before
+it is executed.
+Some of the optimizations we describe exploit a combination of
+information from static analysis and runtime information.
+
+Bhushan Pal Singh, Priyesh Kumar, Chiranmoy Bhattacharya, and S. Sudarshan
+
+3.1
+
+Column Selection
+
+In many programs, not all the columns (attributes) from the input
+dataset are used. Fetching such unused columns into the memory
+leads to increased memory usage and extra IO operations. Column
+selection optimization identifies and fetches into memory only
+those columns that are used later in the program. Live attribute
+analysis (LAA), discussed below, helps to identify which columns
+are used. Once LAA is performed, the relevant API calls are modified
+to fetch only these used columns into memory.
+Live attribute analysis (LAA) is an extension of the well known
+technique of live variable analysis, as mentioned earlier in Section 2.3. LAA treats attributes (columns) of a dataframe as a variable.
+Similar to a variable, a dataframe column is live at a program point
+if there is a path to the program exit along which it may be used.
+However, columns are different from variables in that assignments
+or uses can happen at the level of entire dataframes:
+(1) If the whole dataframe is used at a program point, all
+columns of that dataframe become live.
+(2) Similarly, all columns of a dataframe are killed at the point
+of definition of a dataframe.
+(3) If a dataframe is derived from another dataframe, its liveness information is used to determine liveness information
+for the source dataframe.
+Live variable analysis is done by using dataflow analysis, which
+is based on the Gen and Kill sets at each node in the control flow
+graph (CFG). The dataflow equations for live attribute analysis,
+which are modified from those for live variable analysis, are as
+below:
+𝐺𝑒𝑛𝑛 = {𝑑.𝑖 |𝑖 is a column of dataframe 𝑑, and either
+𝑑.𝑖 or all of 𝑑 (without specifying any
+(1)
+column) is used in basic block 𝑛, prior to
+any assignment to 𝑑.𝑖 or to 𝑑 }.
+𝐾𝑖𝑙𝑙𝑛 = {𝑑.𝑖 |𝑖 is a column of dataframe 𝑑, and either
+𝑑.𝑖 or all of 𝑑 (without specifying any )
+
+(2)
+
+column is assigned in 𝑛}
+Note that if a dataframe is passed as an attribute of a function
+called from 𝑛, we assume that all columns of the dataframe are used
+in 𝑛. Global variables pose another challenge, and if a dataframe is
+assigned to a global variable, we assume conservatively that all its
+columns are used in any function called from 𝑛. Further, aggregate
+operations kill all columns except those used in the aggregate or in
+the groupby operation.
+We next define sets 𝐼𝑛𝑛 and 𝑂𝑢𝑡𝑛 which merge local information
+provided by 𝐺𝑒𝑛𝑛 and 𝐾𝑖𝑙𝑙𝑛 , with information from successor nodes
+of 𝑛, to identify global liveness information.
+Ø
+𝑂𝑢𝑡 n =
+Ins
+(3)
+
+Once LAA is performed, liveness information is available for
+all columns of all dataframes at all program points. The column
+selection optimization modifies the IR to fetch only those dataframe
+columns that are live (in Out𝑛 ) of the program point 𝑛 where the
+dataframe is created from an input dataset, e.g. by a read_csv() call.
+We now consider how live attribute analysis works on the program in Figure 3. This program has only one dataframe, i.e., df. The
+last statement of the program prints the dataframe, so all columns
+are live at ’In’ of this point. Line 8 results in only columns day and
+passenger_count being live. At line 6, the column pickup_datetime
+becomes live, whereas column day is killed as it is assigned and thus
+not alive before that. Line 4 makes fare_amount live. The columns
+live at ’Out’ of the Line 3 are ’pickup_datetime’, ’passenger_count’
+and ’fare_amount’, and only these need to be read from the csv file.
+The optimized version of the program, which reads only the above
+columns, is shown in Figure 4.
+We also note that informative API functions df.head(), df.info()
+and df.describe() are frequently used to get an idea of the dataset
+contents and, their output does not affect the intended program
+result. Treating these as using all attributes of df would result
+in unnecessary column retrieval, so as a heuristic we ignore the
+attribute usage of these functions.
+
+3.2
+
+Predicate Push Down
+
+Performing selection operation early in databases, also known as
+predicate push down, reduces the size of relations and therefore
+reduces the computation to be performed during other operations
+like joins. In dataframe systems, filter operations reduce the size of
+datafame. We identify the filter operations in the task graph, and
+move them as close to the data source as possible.
+Predicate pushdown in dataframe systems is more complex than
+in traditional database systems since the operators are more complex, and further, task graphs are DAGs, not trees.
+We therefore define safe points, and push filter operations as
+early as possible, but only beyond these safe points, to ensure that
+the task graph’s semantics are not modified.
+We define safe point(s) for an operation as point(s) beyond which
+it can be moved without potentially modifying the output of the
+program. Let 𝑚𝑜𝑑_𝑎𝑡𝑡𝑟𝑠 (𝑢) be columns that 𝑢 either modifies or
+computes, and let 𝑢𝑠𝑒𝑑_𝑎𝑡𝑡𝑟𝑠 (𝑢) denote the attributes that are used
+by the operator 𝑢 (including use by UDFs invoked by 𝑢).
+Given a dataframe operator 𝑢 and a filter operation 𝑓 which uses
+the output of 𝑢, we can swap 𝑢 and 𝑓 in the task graph, under the
+following conditions:
+(1) 𝑚𝑜𝑑_𝑎𝑡𝑡𝑟𝑠 (𝑢) ∩ 𝑢𝑠𝑒𝑑_𝑎𝑡𝑡𝑟𝑠 (𝑓 ) = 𝜙
+(2) filtering the rows in the input to 𝑢 does not affect the computed values for the output rows of 𝑢 that satisfy filter
+𝑓
+(3) 𝑓 is the only parent of 𝑢.
+
+𝑠 ∈𝑠𝑢𝑐𝑐 (𝑛)
+
+𝐼𝑛 n = 𝐺𝑒𝑛 n ∪ {Outn − Killn }
+
+(4)
+
+The above equations are solved to get the Gen, Kill, In and Out
+sets for each basic block 𝑛. The live attributes at the end of a basic
+block 𝑛 are those that are in the set 𝑂𝑢𝑡𝑛 . 𝐼𝑛𝑛 represents liveness
+information immediately before the block and 𝑂𝑢𝑡𝑛 represents
+liveness information immediately after the block.
+
+for a number of operators, including getitem, setitem, sort_values,
+drop_duplicates, filter, rename, replace, type conversion operators
+such as to_datetime, to_frame, astype or convert_dtypes, fillna,
+round, abs among others.
+We note that there are operators like explode, and merge can
+affect the number of rows, and we do not allow predicates to be
+pushed below such operators. Predicates cannot be pushed through
+
+Efficient Dataframe Systems: Lazy Fat Pandas on a Diet
+
+operators whose semantics are not known, and thus for which
+we cannot compute mod_attrs or used_attrs. Further, we cannot
+push predicates below operators that have side effects, for example
+operators that perform output operations.
+We also note that in the special case where 𝑢 has multiple parents,
+if all the parents have the same filter 𝑓 , and the other conditions
+for pushing the predicate below 𝑢 are satisfied, we can push 𝑓
+below 𝑢, and remove the filter operator 𝑓 from all the parent paths.
+On the other hand, if all parents of 𝑢 have filter operators, with
+predicates say 𝑝1, 𝑝2, . . . , 𝑝𝑛 respectively, we can push a predicate
+𝑝1 ∧ 𝑝2 ∧ . . . ∧ 𝑝𝑛 below 𝑢, while retaining the filters above 𝑢.
+Finally we note that while our predicate pushdown is done on
+the task graph, it is also possible to infer predicates and push them
+through control flow graphs by using static analysis and rewriting
+programs, similar in spirit to the predicate pushdown performed
+by MagicPush [16]. This can enable some cases of predicate pushdown beyond points where computation is forced. However, it is
+not clear how much benefit this will provide beyond predicate pushdown on task graphs enabled by lazy evaluation, and we have not
+implemented it currently.
+
+3.3
+
+Lazy Print
+
+Dataframe computations in lazy frameworks are deferred until
+computation is forced by a call to a compute() (or similar) method.
+Computation needs to be forced when passing dataframes to functions, for example print, that cannot accept lazy data frames. If
+compute can be deferred, the task graph could includes later parts
+of the code, which can enable other optimizations that may not
+be possible if compute has to be done earlier. Thus, postponing
+invocation of compute() can help to reduce the execution cost.
+Print is one of the most common functions that forces computation. One approach to delay prints, which we tried initially is to
+move print statements to later in the program based on static analysis, coupled with the use of a temporary variable to hold the data
+needed for printing. However, this method is relatively complicated
+and can be expensive or fail if the dataframe to be printed is very
+large.
+Instead, we introduce a lazy version of the print operator, allowing compute calls to be deferred beyond the (lazy) print calls. With
+our novel approach, lazy print statements are treated as operations
+and added to the task graph. When the task graph is executed, the
+print nodes are processed, and the data is printed. However, care
+must be taken to ensure that outputs are generated in the correct
+order, and we now describe how we enforce that.
+We note that although we have currently only implemented the
+lazy version of print, the approach is quite general, and can be used
+for example for generating plots, and for other output operations.
+Figure 7 presents an example with multiple print statements.
+Its optimized version is shown in Figure 8 and the equivalent task
+graph is shown in Figure 9. The optimized program overrides the
+built-in print method with LaFP’s lazy print method by importing
+print from lazyfatpandas.func. The library lazyfatpandas.func also
+provides lazy versions of some other functions; for example the lazy
+version of Python’s len() function, when applied to a lazy dataframe,
+returns a lazy integer, else it behaves like the normal len() function.
+
+i m p o r t l a z y f a t p a n d a s . p a n d a s a s pd
+pd . a n a l y z e ( )
+3 d f = pd . r e a d _ c s v ( " d a t a . c s v " )
+4 p r i n t ( d f . head ( ) )
+# lazy print
+5 d f [ " day " ] = d f . p i c k u p _ d a t e t i m e . d t . dayofweek
+6 p _ p e r _ d a y = d f . groupby ( [ " day " ] ) [ " p a s s e n g e r _ c o u n t "
+] . sum ( )
+7 p r i n t ( p_per_day ) # l a z y p r i n t
+8 a v g _ f a r e = d f . f a r e _ a m o u n t . mean ( )
+9 p r i n t ( f " Average f a r e :
+{ avg_fare } " )
+1
+2
+
+Figure 7: Program with Multiple Print Statements
+import . . .
+from l a z y f a t p a n d a s . f u n c i m p o r t p r i n t # o v e r r i d e
+p r i n t with l a z y p r i n t
+3 . . . [ optimized read csv as in Figure 4}
+4 p r i n t ( d f . head ( ) )
+# lazy print
+5 d f [ ' day ' ] = d f . p i c k u p _ d a t e t i m e . d t . dayofweek
+6 p _ p e r _ d a y = d f . groupby ( [ ' day ' ] ) [ ' p a s s e n g e r _ c o u n t '
+] . sum ( )
+7 p r i n t ( p_per_day )
+# lazy print
+8 a v g _ f a r e = d f . f a r e _ a m o u n t . mean ( )
+9 p r i n t ( f ' Average f a r e :
+{ avg_fare } ' ) # lazy print
+10 pd . f l u s h ( )
+1
+2
+
+Figure 8: Optimized Program with Lazy Print
+
+compute
+
+print
+
+print
+
+sum
+print
+
+mean
+get_item
+passenger_count
+get_item
+
+head
+
+fare_amount
+groupby day
+
+set_item day
+
+dayofweek
+
+get_item
+pickup_datetime
+
+read_csv
+
+Figure 9: Task Graph for Program in Figure 8
+When LaFP’s lazy print is called, the node representing the print
+operation is added to the task graph, with the lazy dataframes as
+the source nodes. A dependency edge is added to the previous print
+
+Bhushan Pal Singh, Priyesh Kumar, Chiranmoy Bhattacharya, and S. Sudarshan
+
+operation (if any) to maintain the correct print order. All the lazy
+dataframes used in the print statement are identified and appropriate edges added to the task graph to ensure that these dataframes
+are computed before the lazy print is (eventually) executed.
+At the end of the program, pd.flush is called, which internally
+invokes compute on the last print node, forcing the computation
+of the task graph. The print statements are processed in the correct order due to the dependency edges between print nodes. The
+statements to override print, as well as the call to pd.flush() are
+automatically inserted in the source program by program rewriting,
+thus fully automating the process.
+Python allows objects, including dataframes, to be used in Python’s
+formatted strings (f-strings), for example:
+print(f'Average fare: {avg_fare}')
+in Figure 7, where avg_fare is a dataframe. Creation of the formatted string would require the dataframe to be computed.
+To defer the computation of the formatted string, while retaining
+the link to the correct dataframe (since the variable may get assigned
+in a subsequent step before the print is executed) the "lazyprint()"
+wrapper function replaces the dataframe variable by the unique ID
+of the task graph node representing the dataframe, along with an
+escape sequence to mark the unique ID.
+When the constructed string is processed by the execution of the
+deferred print function, the function checks for the escape sequence
+to identify the unique ID of the task graph node. Further, this node
+must be computed before the lazy print is processed at the end of
+the program, which is ensured by the runtime.
+
+3.4
+
+Forced Computation for External Module
+Function Invocation
+
+When a program in a lazy framework calls a function that expect
+an evaluated Pandas dataframe, computation needs to be forced
+before the dataframe is passed to such a function call. An example
+of such a commonly used function is matplotlib. Programmers
+using frameworks such as Dask have to manually insert code to
+force computation.
+To deal with the above issue, as part of program rewriting, a
+compute() call is added to force computation before execution of any
+function call for which a lazy implementation is not available; the
+materialized (computed) dataframe is then passed to the function
+call.
+The programs in Figure 10 and its optimized version in Figure 11
+demonstrates forced computation. Our static rewriting optimizer
+keeps track of all the external modules imported during program
+rewriting, for example import matplotlib.pyplot as plt. The
+optimizer checks whether a dataframe is passed as an argument
+when a function from any such modules is invoked. If so, a call to
+compute is added; for example line 10 of Figure 10 is rewritten as
+shown in Figure 11. (The passed argument live_df=[df] is used in
+another optimization which is discussed later).
+To invoke compute on a dataframe, we need to figure out which
+variables are dataframe variables. This information is inferred from
+the types of the Pandas API calls. For example, Pandas functions
+like read_csv() or read_parquet(), as well as most Pandas functions
+on dataframes return dataframes.
+
+i m p o r t l a z y f a t p a n d a s . p a n d a s a s pd
+# e x t e r n a l module
+3 import m a t p l o t l i b . pyplot as p l t
+4 pd . a n a l y z e ( )
+5 d f = pd . r e a d _ c s v ( " d a t a . c s v " )
+6 p r i n t ( d f . head ( ) )
+# lazy print
+7 d f [ " day " ] = d f . p i c k u p _ d a t e t i m e . d t . dayofweek
+8 p _ p e r _ d a y = d f . groupby ( [ " day " ] ) [ " p a s s e n g e r _ c o u n t "
+] . sum ( )
+9 p r i n t ( p_per_day ) # l a z y p r i n t
+10 p l t . p l o t ( p _ p e r _ d a y )
+11 p l t . s a v e f i g ( " f i g . png " )
+12 a v g _ f a r e = d f . f a r e _ a m o u n t . mean ( )
+13 p r i n t ( f " Average f a r e :
+{ avg_fare } " )
+1
+2
+
+Figure 10: Program with External Module Invocation
+
+import . . .
+from l a z y f a t p a n d a s . f u n c i m p o r t p r i n t # l a z y p r i n t
+3 . . . [ optimized read csv as in Figure 4]
+4 p r i n t ( d f . head ( ) )
+5 d f [ ' day ' ] = d f . p i c k u p _ d a t e t i m e . d t . dayofweek
+6 p _ p e r _ d a y = d f . groupby ( [ ' day ' ] ) [ ' p a s s e n g e r _ c o u n t '
+] . sum ( )
+7 p r i n t ( p_per_day )
+8 # p e n d i n g l a z y p r i n t s e v a l u a t e d and
+9 # p _ p e r _ d a y i s computed and p a s s e d t o p l t . p l o t
+10 p l t . p l o t ( p _ p e r _ d a y . compute ( l i v e _ d f =[ d f ] ) )
+11 p l t . s a v e f i g ( ' f i g . png ' )
+12 a v g _ f a r e = d f . f a r e _ a m o u n t . mean ( )
+13 p r i n t ( f ' Average f a r e :
+{ avg_fare } ' )
+14 # e v a l u a t e r e m a i n i n g l a z y p r i n t s
+15 pd . f l u s h ( )
+1
+2
+
+Figure 11: Optimized Version of Program From Figure 10
+
+Further, since external modules like matplotlib.pyplot can
+generate output, which can conflict with lazy printing since the
+output order may get changed. To solve this issue, pending print
+operations are processed when a dataframe is forced to compute,
+maintaining the correct output order.
+In line 10 of Figure 11, when p_per_day.compute() is invoked,
+the task graph containing all the lazy calls up to that point, including lazy prints, are executed, and the result of the node sum
+(p_per_day) passed to plt.plot, generating a plot image. Subsequently, when pd.flush is called in line 15, the print in line 13
+is processed, along with lazy operations that are pending. Note
+that the shared subexpression corresponding to the dataframe df
+computed in line 5 would get recomputed on further execution in
+the program when pd.flush() is called. When the shared subexpression is first computed, information related to the future usage of
+the dataframe in the rest of the program is unavailable to the lazy
+framework. We can use static analysis to avoid recomputation, as
+discussed next in Section ( 3.5).
+
+Efficient Dataframe Systems: Lazy Fat Pandas on a Diet
+
+3.5
+
+Common Computation Reuse
+
+As discussed in the previous section, forced computation can lead
+to re-computation of shared sub-expressions. We can avoid recomputation by persisting dataframes that are used in more than
+one place, before and after a force computation boundary. However, in lazy evaluation frameworks, information about future reuse
+beyond the current task graph is not available when the computation is forced so we do not know which dataframes will be reused.
+Naively persisting every intermediate result just in case it is reused
+is not practical since it would drastically increase memory footprints.
+Therefore, we make use of static analysis to identify useful
+(live) sub-expressions to be cached when compute is invoked on a
+dataframe. We perform Live DataFrame Analysis (LDA) which is
+similar to Live Attribute Analysis (discussed earlier in Section 3.1)
+to identify live (useful) dataframes at each program point. When
+we force computation, we check which dataframes are live after
+the point when the computation is forced, and provide the list of
+such dataframes to the compute method, which persists (caches)
+any common sub-expressions between the expressions defining the
+live dataframes and the nodes in the task graph being computed.
+When the task graph is executed, any node marked for persistence has its result persisted on its first execution. In later executions, the persisted result is reused, instead of being recomputed.
+In Figure 11, the compute method is called on p_per_day, and
+an argument named live_df is introduced, and static analysis is
+used to generate the list of dataframes live after that program
+point and pass it as the value for the live_df argument in line 10.
+After line 10, df is the only live dataframe, and it is used later to
+compute avg_fare. Since df is a shared sub-expression (common
+node) between both p_per_day and avg_fare, the compute call at
+line 10 includes the parameter “live_df = [df]”, which is live and a
+common subexpression, so it will be cached during computation.
+Once all uses of a persisted dataframe have been completed, it
+can be safely discarded to release memory. Our lazy computation
+framework discards persisted dataframes after their last use when
+they are no longer subexpressions of dataframes in live_df list
+passed to the compute().
+
+3.6
+
+Using and Computing Metadata
+
+Data type information and data statistics are both very important
+for efficient computation. While relational databases provide strong
+typing, and precompute statistics such as number of rows, average
+row size, as well as more detailed statistics like number of distinct
+values in each column, or histograms on columns, such information
+is not available for file-based data formats. The widely used csv
+format does not even provide type information; formats such as
+Parquet provide type information, but not statistics.
+We compute metadata for each source data file. Statistics can be
+computed from a sample of the values in a collection. To get correct
+datatypes we have to scan the entire file, although we can do it
+based on the first few rows or a sample, at some risk. The metadata
+for a file is computed by running a script on the file, and stored for
+later use. Information like modified time, column names and types,
+approximate size of each row, and approximate number of rows in
+the dataset are currently maintained in the metadata.
+
+The metadata for a file is accessed when a dataset is used in
+a program. If the meta-data about the dataset is available in the
+metastore, it is retrieved, and used. The modified time metadata is
+used to ensure that if a file has been updated, metadata computed
+before the last update is not used, since it may be outdated.
+Decisions on what framework to use depend on whether the
+dataframes can fit in memory, which can be inferred from the metadata statistics such as number of rows, sizes of rows, data types, etc.
+We are currently working on automated choice of backend based
+on comparing required space for dataframes (based on metadata
+statistics) with available free space.
+Pandas infers some datatypes such as integers and floats automatically (defaulting to int64 or float64) when reading data from csv
+files, to avoid the less efficient string representation. If the programmer knows the type, it can be specified using the dtype attribute of
+read_csv() function, which can reduce storage costs significantly in
+some cases. Our read_csv() wrapper uses the type information from
+metadata, and passes it to the read_csv() function of the backend,
+using the dtype argument.
+One of the commonly used type-related optimizations is to replace string types by category types, when there are only a small
+number of possible string values. A collection of values is created,
+and the strings are represented by (small) integer values indexing
+into the collection. If the type of a column is specified as category,
+read_csv() creates a category type containing the required values.
+From the metadata, we can infer if a column has a small number of
+values and is a candidate for category type.
+However, if we assign datatype as category, and the program
+subsequently assigns a new value not in the input dataset to one of
+the rows in the dataframe, there would be a run-time error.
+To ensure that the category type is used only when safe to do so,
+we make use of the kill information from static analysis (Section 3.1)
+to check which columns of each dataframe are read-only, i.e. they
+are never assigned after being read. The list of read-only columns
+can be passed to our read_csv() wrapper function, which then makes
+use of metadata and declares a column a category type if it has only
+a small number of distinct values, and is read-only. (The read-only
+check is currently under implementation.)
+One of the differences between Pandas as compared to Dask/Spark is that the latter need datatypes in many cases. For example,
+the df.apply() function in Dask requires the output data type to
+be specified using the meta parameter, if the system is not able to
+infer it. We can use the metadata to statically infer types, and pass
+them to the relevant Dask functions. Type inferencing is an area of
+ongoing work.
+
+4
+
+RELATED WORK
+
+Dask [14] provides abstractions over NumPy Arrays, Pandas Dataframes, and regular lists, allowing dataframes to be partitioned, and
+operations on dataframes to run in parallel. Dask operations can
+work on partitions of data, with dynamic and memory-aware task
+scheduling to achieve parallel and out-of-core execution. Modin [11]
+provides a "drop-in" replacement for Pandas, and supports parallel/multicore execution. PySpark [12] supports the Pandas DataFrame API
+on top of Apache Spark. Ray [13] is another framework for distributed programs, which supports scalable datasets (dataframes)
+
+Bhushan Pal Singh, Priyesh Kumar, Chiranmoy Bhattacharya, and S. Sudarshan
+
+among other features. Modin uses Ray as one of its back-end options.
+Multiple libraries use lazy evaluation to optimize data science
+applications. Cunctator [17] delays API function evaluations to
+identify opportunities for API fusion for optimization. Similarly,
+DelayRepay [9] optimizes GPU specific workloads by using lazy
+evaluations over NumPy APIs. Weld [4] is another tool that supports cross-platform optimizations by providing an IR to represent
+workloads of different libraries and by performing optimizations
+across libraries. To the best extent of our knowledge, none of these
+support optimizations discussed and implemented by us.
+Like [15] we perform program rewriting based on static analysis
+using Soot. However, they only consider compile-time optimization,
+without JIT static analysis and do not consider lazy evaluation or
+other run-time optimizations, which are among our key contributions. Live attribute analysis is mentioned in [15] but without any
+details.
+Dias [1] accelerates Python notebook based programs by replacing code sequences with semantically equivalent but faster
+code sequences. It uses a pattern matcher and a rewriter. The Dias
+rewriter applies rewrite rules dynamically at run time, one cell of
+a notebook at a time, and injects checks to verify the correctness
+of rewrites. The SCIRPy optimizer works on a similar principle,
+however, in comparison to Dias where cell-by-cell code transformations are performed, SCIRPy analyzes the entire program for
+optimization opportunities. In addition, LaFP provides a lazy run
+time for task graph based optimizations. LaFP also supports multiple back-end for transparent execution of the same program over
+large dataset.
+Magicpush [16] uses a generate-and-verify based approach for
+predicate pushdown in data science applications. It uses symbolic
+execution and verification and can handle programs having nonrelational operators and user-defined functions (UDFs) for wider
+applicability. In contrast, LaFP performs predicate pushdown optimization by identifying safe points in the programs. Also, LaFP
+performs a wide variety of other optimizations.
+
+5
+
+PERFORMANCE EVALUATION
+
+In this section, we study the benefits of our optimization techniques
+on a variety of programs, across different dataset sizes.
+
+5.1
+
+Benchmark Programs and Datasets
+
+To benchmark LaFP, we have taken real workloads from a variety
+of sources including programs used in [1] [6] [16] . These programs
+execute a variety of operations like data filtering, data augmentation
+using feature addition, data aggregation, data merge, etc., analyzing
+data from domains such as movie rating systems, taxi data, startup
+analysis etc.4
+Each program was executed on datasets of size 1.4 GB, 4.2 GB,
+and 12.6 GB to study the impact of dataset size. We replicated or
+pruned the original datasets that were available with the programs,
+to create datasets of approximately the target size (in most cases
+within 5% of the target size).
+4We
+
+have shared the programs and datasets anonymously at
+https://anonymous.4open.science/r/LaFP_Benchmark-B1FB, and will release
+our benchmark publicly later.
+
+Size
+
+Pandas
+
+LPandas
+
+Modin
+
+LModin
+
+Dask
+
+LDask
+
+1.4GB
+4.2GB
+12.6GB
+
+10
+10
+2
+
+10
+10
+7
+
+10
+9
+4
+
+10
+9
+7
+
+10
+10
+8
+
+10
+10
+9
+
+Figure 12: Number of Programs Successfully Executed on
+Different Platforms
+For each program, we compare the performance with and without our optimizations (including both run time and rewrite optimizations), using Pandas, Dask and Modin as the back-ends. For
+comparison with direct use of Dask and Modin frameworks, we
+manually transformed the programs to use Dask and Modin. Executing Pandas programs on Modin is straightforward, with the
+only change required being to an import statement. To get Pandas programs to run on Dask, the programs usually needs to be
+rewritten, for reasons such as the need for forcing computation
+in a lazy framework, lack of support for some API methods, and
+more fundamentally, the fact that Dask does not preserve ordering
+of rows in the dataframe, and thus position-based indexed access
+does not work. To check the performance with Dask, we modified
+the programs manually to make them compatible with Dask. Some
+programs required minor modifications like passing appropriate
+datatypes and code changes to force compute before certain API
+calls (like sort_index()), others required rewriting to work around
+APIs, such as iloc() for row position, of features such as inplace
+updates, that are not supported by Dask dataframes.
+Modin can use different execution engines, such as Ray or Dask.
+We use Ray as the default executor for Modin and LaFP Modin
+programs. In some cases where a program/dataset combination
+could not be executed using Ray, we use Dask as executor for Modin.
+For such programs, Dask is used as executor for LaFP Modin as
+well for uniform comparison.
+We present end-to-end performance results for LaFP; it is difficult to segregate out benefits of compile time versus run time
+optimizations since LaFP utilizes static and runtime optimizations
+in a unified manner. Optimizations like common computation reuse,
+forced computation, lazy print utilize both run time and compile
+time steps.
+We run all our experiments on a hexa-core AMD Ryzen 5 3600
+with base clock at 3.6 GHz with 32GB of DDR 4 3200Mhz RAM.
+
+5.2
+
+Applicability of LaFP
+
+A major goal of our optimizations was to ensure that Pandas programs can run successfully even on large datasets. The first set
+of experiments therefore checks how many programs could complete successfully using the different frameworks, with and without
+optimization.
+Our framework allows any backend to be used without any program rewrite (barring an import of the lazyfatpandas library, a
+configuration line to choose the backend, and a call to analyze()).
+The changes required to enable execution using Dask are implemented by a combination of rewriting based on static analysis (for
+example to force computation), and via wrapper functions in the
+LaFP API. The wrapper functions uses appropriate Dask calls to
+implement Pandas API functionality where possible, and in other
+cases (such as inplace updates, column rename, shape changing
+
+Efficient Dataframe Systems: Lazy Fat Pandas on a Diet
+
+%Reduction in Execution Time
+
+Pandas
+Lazy Pandas
+Modin
+Lazy Modin
+Dask
+Lazy Dask
+
+60
+40
+20
+0
+20
+
+ais
+
+100
+
+Baseline vs LaFP Execution Time Improvement (Dataset size:4.2GB)
+Pandas
+Modin
+Dask
+
+cty
+
+dso
+
+emp
+
+env
+fdb
+Programs
+
+mov
+
+nyt
+
+stu
+
+zip
+
+Execution Time
+
+We first consider absolute execution times for different configurations, on the 1.4 GB dataset, where all the configurations could
+run successfully. The results are shown in Figure 13. It can be seen
+5 Automating the detection of order sensitivity is an area of future work.
+
+80
+60
+40
+20
+0
+20
+
+ais
+
+100
+
+Baseline vs LaFP Execution Time Improvement (Dataset size:12.6GB)
+Pandas
+Modin
+Dask
+
+cty
+
+dso
+
+emp
+
+env
+fdb
+Programs
+
+mov
+
+nyt
+
+stu
+
+zip
+
+(b) 4.2 GB Dataset
+
+%Reduction in Execution Time
+
+operations etc) converts dataframes to Pandas, applies the function
+in Pandas, and converts the dataframe back to Dask. Passing input/output types to apply() function is required in Dask, and adding
+it automatically is under implementation; we manually added the
+type for one program that needed it.
+Users however need to be aware that using Dask may affect the
+order of rows in dataframes, which may potentially affect subsequent operations that are order sensitive. If the program has such
+order sensitive operations, the user should not choose Dask as the
+backend.5
+Figure 12 shows how many programs/dataset combinations
+could execute successfully on different backends, with LPandas,
+LModin and LDask denoting the versions using our rewrite+runtime
+optimizations, using, respectively, Pandas, Modin and Dask as backend executors.
+With Pandas, only 2 programs run successfully with 12.6 GB
+dataset. Modin could execute only 4 such programs. Dask could execute 8 programs. The Pandas/LPandas and Modin/LModin programs
+that failed had run out of memory. The one program where Dask/LDask also failed was the ’emp’ program; on inspection we found
+that there was a call to an external plot function which required
+materializing a large dataframe as a Pandas dataframe, which resulted in out of memory error. In contrast, using our optimizations,
+all except the above program, i.e. 9 programs out of 10, ran successfully with Dask as backend (i.e. LDask). Only 7 programs ran with
+either Pandas or Modin as backend (i.e., LPandas or LModin). The
+improvements in the case of Pandas and Modin were because our
+rewrites could reduce space usage, whereas un-optimized Pandas/
+Modin programs ran out of memory.
+We also built a regression test framework to ensure that the
+datasets computed with our optimizations were identical to the
+results on Pandas without any optimization, by computing and
+comparing hashes (computed using md5) of the dataset results; our
+optimized programs on different platforms all passed these tests.
+
+%Reduction in Execution Time
+
+zip
+
+stu
+
+nyt
+
+mov
+
+fdb
+
+env
+
+dso
+
+emp
+
+Dataset1
+
+Figure 13: Execution Time on Different Platforms - 1.4 GB
+
+5.3
+
+80
+
+Baseline vs LaFP Execution Time Improvement (Dataset size:1.4GB)
+Pandas
+Modin
+Dask
+
+(a) 1.4 GB Dataset
+cty
+
+200
+175
+150
+125
+100
+75
+50
+25
+0
+
+ais
+
+Execution Time
+
+100
+
+80
+60
+40
+20
+0
+20
+
+ais
+
+cty
+
+dso
+
+emp
+
+env
+fdb
+Programs
+
+mov
+
+nyt
+
+stu
+
+zip
+
+(c) 12.6 GB Dataset
+
+Figure 14: Execution Time Improvement
+
+that Pandas and Modin are faster than Dask when datasets fit in
+memory. The optimized versions of the programs running on LaFP
+are better than the original versions in almost all cases. Dask is
+slower than Pandas in most of the cases, but interestingly, Lazy
+Dask versions are not only faster than Dask, but also faster than
+all the alternatives in most of the cases, presumably because of the
+combination of our optimizations with Dask runtime optimizations.
+However, for smaller datasets (whose results are not shown due to
+lack of space), Lazy Pandas was faster than all other alternatives in
+many of the cases.
+Next, we consider larger datasets, where Pandas and Modin
+are not able to run successfully in several cases. Figure 14 shows
+the execution time improvements using our optimizations, as a
+percentage of the original time, across different backends (Pandas,
+Modin and Dask), for different programs for different dataset sizes.
+In cases where the corresponding program and dataset combination could not execute successfully on the relevant backend, we
+treat the original execution time as infinity, resulting in 100% improvement in performance. Correspondingly, missing data points
+
+%Reduction in Memory Consumption
+
+Bhushan Pal Singh, Priyesh Kumar, Chiranmoy Bhattacharya, and S. Sudarshan
+
+100 Baseline vs LaFP Memory Consumption Improvement (Dataset size:1.4GB)
+Pandas
+80
+Modin
+Dask
+60
+40
+20
+0
+20
+40
+ais
+
+cty
+
+dso
+
+emp
+
+env
+fdb
+Programs
+
+mov
+
+nyt
+
+stu
+
+zip
+
+%Reduction in Memory Consumption
+
+(a) 1.4 GB Dataset
+100 Baseline vs LaFP Memory Consumption Improvement (Dataset size:4.2GB)
+Pandas
+80
+Modin
+Dask
+60
+40
+
+5.4
+
+20
+0
+20
+40
+ais
+
+cty
+
+dso
+
+emp
+
+env
+fdb
+Programs
+
+mov
+
+nyt
+
+stu
+
+zip
+
+(b) 4.2 GB Dataset
+100 Baseline vs LaFP Memory Consumption Improvement (Dataset size:12.6GB)
+
+%Reduction in Memory Consumption
+
+that have multiple prints, our optimizations provided particularly
+high improvements on Dask, thanks to our innovative lazy print
+optimization.
+Multiple optimizations are applicable on several of the benchmarks. For example, on ’stu’ program, metadata analysis, Lazy print
+and common computation reuse via caching are applicable. Using
+Dask backend, with 12.6 GB of data, the LaFP optimizations reduced the execution time by 13X. Turning off caching reduced the
+time benefit to 1.4X, demonstrating the significant benefit of this
+optimization.
+We also measured the overhead due to our static analysis and
+rewriting optimization techniques. The time taken by JIT static
+analysis phase and rewriting for various programs is in the range
+of 0.04 sec - 0.59 sec, which is a very small fraction of the execution
+times of the programs.
+
+80
+60
+40
+20
+0
+20
+40
+ais
+
+cty
+
+dso
+
+emp
+
+Pandas
+Modin
+Dask
+env
+fdb
+Programs
+
+mov
+
+nyt
+
+stu
+
+zip
+
+(c) 12.6 GB Dataset
+
+Figure 15: Memory Consumption Reduction
+
+in the Figure 15, such as for ’emp’ on 12.6GB, represent cases where
+the program could be not be executed using the relevant backend,
+nor could the optimized version of the program be executed with
+the same backend. It can be seen that across Pandas, Modin, and
+Dask, there were multiple programs that, without our optimizations,
+could not be executed on the 12.6 GB dataset.
+On the datasets where the backends worked successfully, our
+optimizations resulted in significant improvement in execution time
+on almost all cases, with upto nearly 70% reduction (3X speedup)
+in execution time on Pandas, and upto 90% improvement (10X
+speedup) with Modin, and upto 95% improvement (19X speedup)
+with Dask. There were very few cases where our optimizations
+increased the execution time, with the worst case being 20% more
+time as compared to the original Pandas program (shown as a
+negative 20% improvement).
+Although Dask has its own run-time optimizer, our optimized
+versions running on Dask performed significantly better in almost
+all cases. Column selection rewrite played a significant part in
+improving the performance. We also found that for applications
+
+Maximum Memory Consumption
+
+To get reliable memory size estimates despite multi-threaded execution with Modin and Dask, we created a separate thread that monitored the process memory usage every 200 milliseconds, and we
+report the maximum memory usage. Figure 15 shows the memory
+consumption improvements using our optimizations, as a percentage of the original memory usage, across different backends (Pandas,
+Modin and Dask), for different programs for different dataset sizes.
+In cases where the corresponding program and dataset combination could not execute successfully on the relevant backend,
+we treat the memory consumption as infinity, resulting in 100%
+improvement in performance. Missing values in the Figure 15 represent cases where neither the original nor the optimized program
+could execute successfully.
+On cases where Pandas could run successfully, our optimizations
+improve memory consumption significantly in most cases, with
+over 95% reduction in some cases where column selection was
+particularly helpful. For the programs that can be executed with
+Modin, our optimizations reduced memory consumption by upto
+60%. There were only a few cases where our optimizations increased
+memory consumption, with 25% increase in the worst case.
+LaFP with Dask reduces memory utilization compared to Dask
+in many cases, with upto up to 70% reduction in memory consumption, primarily due to projection pushdown rewriting. However, in
+other cases LaFP has increased memory utilization; for example
+with ’stu’ programs on 12.6 GB of data persisting of common subexpressions resulted in 2.3X increase in memory consumption, while
+providing 13X speedup in execution time. If we disable common
+sub-expression caching the memory consumption reduces to 80%
+of that of the baseline, but the execution speedup drops from from
+13X to 1.4X. It may be noted that persisted dataframes are memory
+resident not only when using Pandas and Modin, but also with
+Dask when using Dask’s persist() API function, which results in
+increased memory usage. Persisting Dask dataframes on disk is an
+area of future work.
+
+6
+
+CONCLUSION AND FUTURE WORK
+
+We have described novel optimization techniques for Pandas programs, that combine the best of two approaches: static analysis
+based rewriting and lazy runtime frameworks. Our performance
+
+Efficient Dataframe Systems: Lazy Fat Pandas on a Diet
+
+study shows the significant benefits of our optimization approach
+in terms of its ability to successfully execute Pandas programs on
+large datasets, in terms of execution speeds, and in terms of memory
+usage, as well as its superiority to just using lazy frameworks.
+Future work includes implementation of automated choice of
+backend based on size estimates and order dependency, completion
+of read-only attribute analysis to ensure category type can be safely
+used, type inference for input/output parameters to be passed to
+Dask apply() function, and addition of support for more Pandas API
+calls. Since Modin and Dask both support clusters of machines, execution on a cluster of machines and related performance evaluation
+is part of our future work.
+
+REFERENCES
+[1] Stefanos Baziotis, Daniel Kang, and Charith Mendis. 2024. Dias: Dynamic Rewriting of Pandas Code. Procs. of ACM on Management of Data (PACMMOD) 2, 1
+(Feb. 2024), 27. https://doi.org/10.1145/3639313
+[2] Soot Contributors. 2012. Soot: a Java Optimization Framework. https://www.
+sable.mcgill.ca/soot/.
+[3] K. Venkatesh Emani, Karthik Ramachandra, Subhro Bhattacharya, and S. Sudarshan. 2016. Extracting Equivalent SQL from Imperative Code in Database
+Applications. In Procs. of SIGMOD. 1781–1796.
+
+[4] Shoumik Palkar et al. 2017. Weld: A Common Runtime for High Performance
+Data Analytics. In CIDR ’17.
+[5] M. S. Hecht and J. D. Ullman. 1972. Flow graph reducibility. In Procs. ACM Symp.
+Theory of Computation (STOC). 238–250.
+[6] Alekh Jindal et al. 2021. Magpie: Python at Speed and Scale using Cloud Backends.
+In Conf. on Innovative Data Systems Research (CIDR).
+[7] Uday Khedker, Amitabha Sanyal, and Bageshri Karkare. 2009. Data Flow Analysis:
+Theory and Practice. CRC Press, Inc.
+[8] Modin 2024. https://github.com/modin-project/modin.
+[9] John Magnus Morton et al. 2020. DelayRepay: Delayed Execution for Kernel
+Fusion in Python. In ACM SIGPLAN Intl Symp. on Dynamic Languages (DLS).
+ACM.
+[10] S Muchnick. 1997. Advanced Compiler Design Implementation. Morgan Kaufmann.
+[11] Devin Petersohn, Stephen Macke, Doris Xin, William Ma, Doris Lee, Xiangxi
+Mo, Joseph E. Gonzalez, Joseph M. Hellerstein, Anthony D. Joseph, and Aditya
+Parameswaran. 2020. Towards Scalable Dataframe Systems. Proc. VLDB Endow.
+13, 12 (July 2020), 2033–2046.
+[12] PySpark 2024. Pandas API on Spark. https://spark.apache.org/docs/latest/api/
+python/user_guide/pandas_on_spark. Accessed Sep 2024.
+[13] Ray 2024. Ray: a unified framework for scaling AI and Python applications.
+https://github.com/ray-project/ray. Accessed Sep 2024.
+[14] Matthew Rocklin. 2015. Dask: Parallel computation with blocked algorithms and
+task scheduling. In Proceedings of the 14th Python in science conference. Citeseer.
+[15] Bhushan Pal Singh, Mudra Sahu, and S. Sudarshan. 2021. Optimizing Data Science
+Applications using Static Analysis. In Int’l Symp. on Database Prog. Languages
+(DBPL). 23–27.
+[16] Cong Yan, Yin Lin, and Yeye He. 2023. Predicate Pushdown for Data Science
+Pipelines. Proc. ACM Manag. Data 1, 2 (jun 2023), 28.
+[17] Guoqiang Zhang and Xipeng Shen. 2021. Best-Effort Lazy Evaluation for Python
+Software Built on APIs. In ECOOP 2021.
+
+
