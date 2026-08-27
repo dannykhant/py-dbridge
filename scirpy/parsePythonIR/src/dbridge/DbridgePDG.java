@@ -5,9 +5,7 @@ import ir.IExpr;
 import ir.Stmt.AssignStmt;
 import ir.Stmt.AssignmentStmtSoot;
 import ir.Stmt.CallExprStmt;
-import ir.expr.Attribute;
-import ir.expr.Call;
-import ir.expr.Name;
+import ir.expr.*;
 import soot.Body;
 import soot.Unit;
 import soot.Value;
@@ -186,8 +184,10 @@ public class DbridgePDG {
         } else if (expr instanceof BoolOp) {
             BoolOp bo = (BoolOp) expr;
             if (bo.getValues() != null) {
-                for (IExpr v : bo.getValues()) {
-                    collectUsesFromExpr(v, outUses);
+                for (Object v : bo.getValues()) {
+                    if (v instanceof IExpr) {
+                        collectUsesFromExpr((IExpr) v, outUses);
+                    }
                 }
             }
         } else if (expr instanceof Compare) {
@@ -203,8 +203,8 @@ public class DbridgePDG {
             if (d.getKeys() != null) {
                 for (IExpr k : d.getKeys()) collectUsesFromExpr(k, outUses);
             }
-            if (d.getValues() != null) {
-                for (IExpr v : d.getValues()) collectUsesFromExpr(v, outUses);
+            if (d.getValue() != null) {
+                for (IExpr v : d.getValue()) collectUsesFromExpr(v, outUses);
             }
         }
     }

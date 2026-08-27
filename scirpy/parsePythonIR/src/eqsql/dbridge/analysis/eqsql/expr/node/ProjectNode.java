@@ -7,12 +7,23 @@ import eqsql.exceptions.QueryTranslationException;
  * Created by ek on 17/10/16.
  */
 public class ProjectNode extends Node implements HQLTranslatable, SQLTranslatable{
-    /**
-     * @param relation Any node that represents the result of a query (directly or indirectly)
-     * @param projEl The element to be projected
-     */
-    protected ProjectNode(Node relation, Node projEl) {
-        super(new ProjectOp(), relation, projEl);
+    private boolean distinct = false;
+
+    public ProjectNode(Node fromNode, Node projectionNode) {
+        this(fromNode, projectionNode, false);
+    }
+
+    public ProjectNode(Node fromNode, Node projectionNode, boolean distinct) {
+        super(new ProjectOp(), fromNode, projectionNode);
+        this.distinct = distinct;
+    }
+
+    public boolean isDistinct() {
+        return distinct;
+    }
+
+    public void setDistinct(boolean distinct) {
+        this.distinct = distinct;
     }
 
     @Override

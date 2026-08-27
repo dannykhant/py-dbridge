@@ -12,6 +12,10 @@ public class GroupByNode extends Node implements HQLTranslatable, SQLTranslatabl
         super(new GroupByOp(), piNode, groupByCol);
     }
 
+    public GroupByNode(ProjectNode piNode, VarNode groupByCol) {
+        super(new GroupByOp(), piNode, groupByCol);
+    }
+
     @Override
     public String toHibQuery() throws QueryTranslationException {
         String piNodeSQL = ((HQLTranslatable)children[0]).toHibQuery();
