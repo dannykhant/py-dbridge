@@ -1,0 +1,30 @@
+[project]
+name = "py-dbridge"
+version = "0.1.0"
+description = "Python program rewrite tool for set-oriented query execution"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "typer>=0.9",
+    "psycopg2-binary>=2.9",
+    "py4j>=0.10",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "fastapi>=0.100",
+    "pydantic>=2.0",
+    "uvicorn>=0.20",
+    "httpx>=0.23",
+]
+
+[project.scripts]
+pyd = "src.cli:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+

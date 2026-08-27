@@ -1,0 +1,120 @@
+# ==========================================
+# Java Rules
+# ==========================================
+# Compiled class files
+*.class
+
+# Log files
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files (Uncomment if you do not want to commit jars)
+# *.jar
+# *.war
+# *.nar
+# *.ear
+# *.zip
+
+# Maven build artifacts
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Gradle build artifacts
+.gradle/
+build/
+
+# ==========================================
+# Python Rules
+# ==========================================
+# Byte-compiled / optimized / dll files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ==========================================
+# IDE and OS Specific (Optional but Recommended)
+# ==========================================
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Eclipse
+.metadata/
+bin/
+tmp/
+.classpath
+.project
+.settings/
+
+# VS Code
+.vscode/
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Project specific rules
+!src/lib/
+!src/venv/
+!src/venv/bin/
+!scripy/lib/
+
+sandbox/
+.agents/
+.out/
+out/
+scirpy/out/
+.scirpy_tmp/
+results/
+AGENTS.md
+opencode.json
+.pytest_cache/
