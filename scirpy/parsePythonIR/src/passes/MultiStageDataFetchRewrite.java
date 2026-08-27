@@ -476,7 +476,7 @@ public class MultiStageDataFetchRewrite {
         List<Local> parameterTypes=new ArrayList();
 
         JPMethod jpMethod=new JPMethod("Module", parameterTypes, null);
-        String path = "/home/mudra/IDEA/scirpy/pythonIR";
+        String path = "./pythonIR";
         String srcFileName = "US_Accidents_Analysis.py";
         JPBody jpBody=new JPBody(jpMethod, rewritten , locals);
         jpBody.getMethod().setActiveBody(jpBody);

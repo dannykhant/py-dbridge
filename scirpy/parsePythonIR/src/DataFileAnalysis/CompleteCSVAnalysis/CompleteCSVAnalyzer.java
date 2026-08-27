@@ -9,7 +9,7 @@ import java.util.*;
 public class CompleteCSVAnalyzer {
 
     public static void main(String[] args) {
-        String filePath = "/home/bhushan/Downloads/s1.csv"; // Replace with your CSV file path
+        String filePath = "s1.csv"; // Replace with your CSV file path
 
         // Process the file
         processCSVFile(filePath);

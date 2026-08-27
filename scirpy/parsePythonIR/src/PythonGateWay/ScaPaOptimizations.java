@@ -18,13 +18,13 @@ import soot.SootMethod;
 import java.util.List;
 
 public class ScaPaOptimizations {
-    static String sourcePath = "/home/bhushan/intellijprojects/scirpy/pythonIR";
-    static String path =        "/home/bhushan/intellijprojects/scirpy/pythonIR";
-    static String dataPath =    "/home/bhushan/intellijprojects/scirpy/pythonIR";
+    static String sourcePath = "./pythonIR";
+    static String path =        "./pythonIR";
+    static String dataPath =    "./pythonIR";
     static String filename =    "temp.json";
     static String srcFileName=  "test.py";
     static String destinationFileName="";
-    static String destPath="/home/bhushan/intellijprojects/scirpy/pythonIR";
+    static String destPath="./pythonIR";
 
 
     public static void setPaths(String sourceNameFull, String sourceFileName, String destinationPath, String dataPathDirectory){

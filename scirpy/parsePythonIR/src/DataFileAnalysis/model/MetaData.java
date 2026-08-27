@@ -17,8 +17,8 @@ public class MetaData {
     boolean[] isCategory;
     //TODO change this to relative path
 
-    String metaPath="/home/bhushan/intellijprojects/scirpy/parsePythonIR/src/METADATA.DATA";
-    //String metaPath="/home/mudra/IDEA/scirpy/parsePythonIR/src/METADATA.DATA";
+    String metaPath="./parsePythonIR/src/METADATA.DATA";
+    //String metaPath="./parsePythonIR/src/METADATA.DATA";
     //added in May 2021 for rowsize snf total rows
     long rowSize=0;
     long totalRows=0;

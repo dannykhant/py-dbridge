@@ -14,9 +14,9 @@ import java.util.List;
 import ForceCompute.ForceCompute;
 
 public class IPMain {
-    static String sourcePath = "/home/chiranmoy/IdeaProjects/scirpy/pythonIR";
-    static String path = "/home/chiranmoy/IdeaProjects/scirpy/pythonIR";
-    static String dataPath = "/home/chiranmoy/IdeaProjects/scirpy/pythonIR";
+    static String sourcePath = "./pythonIR";
+    static String path = "./pythonIR";
+    static String dataPath = "./pythonIR";
     static String filename = "temp.json";
     static String srcFileName="test.py";
     static String destinationFileName="";

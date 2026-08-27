@@ -16,9 +16,9 @@ import java.util.Map;
 public class TestSoot extends BodyTransformer {
     public static void main(String[] args) {
         //Self start
-        String sourcePath="/home/bhushan/intellijprojects/scirpy/pythonIR";
-        String path="/home/bhushan/intellijprojects/scirpy/pythonIR";
-        String dataPath="/home/bhushan/intellijprojects/scirpy/pythonIR";
+        String sourcePath="./pythonIR";
+        String path="./pythonIR";
+        String dataPath="./pythonIR";
         String filename="temp.json";
         JSONArray stmtList = ReadPythonIR.ReadFile(filename);
         MainParser mainParser=new MainParser(stmtList);

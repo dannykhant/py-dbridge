@@ -6,7 +6,7 @@ import java.util.Properties;
 public class ReadProps {
     public static void main(String[] args) {
 
-        try (OutputStream output = new FileOutputStream("/home/bhushan/intellijprojects/scirpy/parsePythonIR/src/PythonGateWay/Scapa.properties")) {
+        try (OutputStream output = new FileOutputStream("./parsePythonIR/src/PythonGateWay/Scapa.properties")) {
 
             Properties prop = new Properties();
 
@@ -26,7 +26,7 @@ public class ReadProps {
 
     public static String read(String propName) {
 
-        try (InputStream input = new FileInputStream("/home/bhushan/intellijprojects/scirpy/parsePythonIR/src/PythonGateWay/Scapa.properties")) {
+        try (InputStream input = new FileInputStream("./parsePythonIR/src/PythonGateWay/Scapa.properties")) {
 
             Properties prop = new Properties();
             // load a properties file
