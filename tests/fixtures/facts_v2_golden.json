@@ -1,0 +1,63 @@
+{
+  "classes": [
+    {
+      "className": "TestClass",
+      "methods": [
+        {
+          "methodName": "test_method",
+          "methodSummary": {
+            "mayRead": true,
+            "mayWrite": false,
+            "hasFetch": true,
+            "returnsValue": false
+          }
+        }
+      ]
+    }
+  ],
+  "loops": [
+    {
+      "method": "test_method",
+      "headLineno": 12,
+      "testVars": ["x"],
+      "stmtOrder": [13, 14, 15],
+      "deps": [
+        {
+          "source": 14,
+          "target": 15,
+          "variable": "row",
+          "type": "flow"
+        }
+      ],
+      "queries": [
+        {
+          "callLineno": 14,
+          "cyclic": false,
+          "stmtOrder": [13, 14, 15],
+          "deps": [
+            {
+              "source": 14,
+              "target": 15,
+              "variable": "row",
+              "type": "flow"
+            }
+          ],
+          "labels": {
+            "13": "PRE",
+            "14": "EXEC",
+            "15": "POST"
+          }
+        }
+      ]
+    }
+  ],
+  "deps": [
+    {
+      "source": 14,
+      "target": 15,
+      "variable": "row",
+      "type": "flow"
+    }
+  ],
+  "stmtOrder": [13, 14, 15]
+}
