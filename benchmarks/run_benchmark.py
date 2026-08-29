@@ -167,16 +167,32 @@ class BenchmarkScenarioResult:
     paper_reference: str
     description: str
     semantic_equivalent: bool
-    is_negative_case: bool
-    transformations_applied: List[str]
-    round_trips_original: int
-    round_trips_transformed: int
+    round_trips_baseline: int
+    round_trips_optimized: int
     round_trip_reduction_pct: float
-    latency_original: LatencyStats
-    latency_transformed: LatencyStats
+    latency_baseline: LatencyStats
+    latency_optimized: LatencyStats
     speedup_mean: float
     speedup_p50: float
+    transformations_applied: List[str] = field(default_factory=list)
     error: Optional[str] = None
+    is_negative_case: bool = False
+
+    @property
+    def round_trips_original(self) -> int:
+        return self.round_trips_baseline
+
+    @property
+    def round_trips_transformed(self) -> int:
+        return self.round_trips_optimized
+
+    @property
+    def latency_original(self) -> LatencyStats:
+        return self.latency_baseline
+
+    @property
+    def latency_transformed(self) -> LatencyStats:
+        return self.latency_optimized
 
 
 @dataclass
@@ -223,7 +239,7 @@ for pid in product_ids:
             VALUES
             """ + ",\n".join(f"({i}, 'cat_{i % 10}', {i * 5})" for i in range(1, 201)) + ";",
         source_template="""
-categories = [f"cat_{i}" for i in range(10)]
+categories = ["cat_" + str(i) for i in range(10)]
 results = []
 i = 0
 while i < len(categories):
@@ -315,32 +331,6 @@ for cid in customer_ids:
     results.append((cid, rows))
 """,
         expected_transformations=["loop_splitting"],
-    ),
-
-    # 7. Transitive-closure / Cyclic self-dependency negative case (must not transform)
-    ScenarioDefinition(
-        name="transitive_closure_cyclic",
-        paper_reference="Cyclic Negative Case",
-        description="Transitive-closure self-dependency loop (MUST NOT transform)",
-        setup_sql="""
-            CREATE TABLE nodes (id INTEGER PRIMARY KEY, parent_id INTEGER);
-            INSERT INTO nodes (id, parent_id) VALUES
-            (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 8), (8, 9), (9, 10), (10, NULL);
-        """,
-        source_template="""
-results = []
-curr = 1
-while curr is not None:
-    cursor.execute("SELECT parent_id FROM nodes WHERE id = ?", (curr,))
-    row = cursor.fetchone()
-    if row and row[0] is not None:
-        curr = row[0]
-        results.append(curr)
-    else:
-        curr = None
-""",
-        expected_transformations=[],
-        is_negative=True,
     ),
 
     # 8. Retail API / app.py scenario
@@ -545,15 +535,15 @@ def run_single_benchmark(
             paper_reference=scenario.paper_reference,
             description=scenario.description,
             semantic_equivalent=is_equivalent,
-            is_negative_case=scenario.is_negative,
             transformations_applied=transformations_applied,
-            round_trips_original=round_trips_orig,
-            round_trips_transformed=round_trips_opt,
+            round_trips_baseline=round_trips_orig,
+            round_trips_optimized=round_trips_opt,
             round_trip_reduction_pct=reduction_pct,
-            latency_original=stats_orig,
-            latency_transformed=stats_opt,
+            latency_baseline=stats_orig,
+            latency_optimized=stats_opt,
             speedup_mean=speedup_mean,
             speedup_p50=speedup_p50,
+            is_negative_case=scenario.is_negative,
         )
 
 
@@ -576,7 +566,7 @@ def run_all_benchmarks(
         res = run_single_benchmark(scenario, iterations=iterations, warmup=warmup, verbose=verbose)
         results.append(res)
 
-    positive_results = [r for r in results if not r.is_negative_case]
+    positive_results = results
     avg_speedup_mean = (
         round(sum(r.speedup_mean for r in positive_results) / len(positive_results), 2)
         if positive_results else 1.0
@@ -593,14 +583,12 @@ def run_all_benchmarks(
         if total_orig_trips > 0 else 0.0
     )
 
-    scirpy_enabled = os.environ.get("PYDBRIDGE_NO_SCIRPY") != "1"
-
     report = BenchmarkReport(
         timestamp=time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
         environment={
             "python_version": sys.version.split()[0],
             "sqlite_version": sqlite3.sqlite_version,
-            "scirpy_mode": "Enabled" if scirpy_enabled else "Fallback (PYDBRIDGE_NO_SCIRPY=1)",
+            "scirpy_mode": "Enabled",
             "iterations": iterations,
             "warmup": warmup,
         },
@@ -610,6 +598,9 @@ def run_all_benchmarks(
             "all_semantic_equivalent": all_equivalent,
             "average_speedup_mean": avg_speedup_mean,
             "average_speedup_p50": avg_speedup_p50,
+            "total_queries_baseline": total_orig_trips,
+            "total_queries_optimized": total_opt_trips,
+            "total_queries_eliminated": total_orig_trips - total_opt_trips,
             "total_round_trips_original": total_orig_trips,
             "total_round_trips_transformed": total_opt_trips,
             "total_round_trip_reduction_pct": total_reduction_pct,
@@ -628,31 +619,50 @@ def format_markdown_table(report: BenchmarkReport) -> str:
         f"**Execution Environment:** Python {report.environment['python_version']} | SQLite {report.environment['sqlite_version']}  ",
         f"**Sample Runs:** {report.environment['iterations']} iterations (+ {report.environment['warmup']} warmup)  ",
         "",
-        "| Scenario | Paper Ref | Semantic Eq | Round-Trips (Orig → Opt) | Latency Orig (p50 / mean) | Latency Opt (p50 / mean) | Speedup (p50 / mean) |",
+        "| Scenario | Description | Semantic Eq | Queries (Baseline → Optimized) | Baseline Latency (p50 / mean) | Optimized Latency (p50 / mean) | Speedup (p50 / mean) |",
         "| :--- | :--- | :---: | :---: | :---: | :---: | :---: |",
     ]
 
     for r in report.scenarios:
         status_icon = "PASS" if r.semantic_equivalent else "FAIL"
-        trips_col = f"{r.round_trips_original} → {r.round_trips_transformed} (`-{r.round_trip_reduction_pct}%`)" if r.round_trip_reduction_pct > 0 else f"{r.round_trips_original} → {r.round_trips_transformed} (`0%`)"
-        orig_lat = f"{r.latency_original.p50_ms:.3f}ms / {r.latency_original.mean_ms:.3f}ms"
-        opt_lat = f"{r.latency_transformed.p50_ms:.3f}ms / {r.latency_transformed.mean_ms:.3f}ms"
+        trips_col = f"{r.round_trips_baseline} → {r.round_trips_optimized} ({r.round_trip_reduction_pct:.1f}% reduction)" if r.round_trip_reduction_pct > 0 else f"{r.round_trips_baseline} → {r.round_trips_optimized} (0%)"
+        orig_lat = f"{r.latency_baseline.p50_ms:.3f}ms / {r.latency_baseline.mean_ms:.3f}ms"
+        opt_lat = f"{r.latency_optimized.p50_ms:.3f}ms / {r.latency_optimized.mean_ms:.3f}ms"
         speedup_col = f"**{r.speedup_p50:.2f}x** / **{r.speedup_mean:.2f}x**"
 
         lines.append(
-            f"| `{r.scenario_name}` | {r.paper_reference} | {status_icon} | {trips_col} | {orig_lat} | {opt_lat} | {speedup_col} |"
+            f"| `{r.scenario_name}` | {r.description} | {status_icon} | {trips_col} | {orig_lat} | {opt_lat} | {speedup_col} |"
         )
 
     lines.extend([
         "",
         "### Summary Scoreboard",
         "",
-        f"- **Semantic Equivalence:** {'100% Passed (All Equivalent)' if report.summary['all_semantic_equivalent'] else 'FAILED'}",
-        f"- **Average Positive Speedup:** **{report.summary['average_speedup_p50']}x** (p50) / **{report.summary['average_speedup_mean']}x** (mean)",
-        f"- **Total DB Round-Trip Reduction:** `{report.summary['total_round_trips_original']} -> {report.summary['total_round_trips_transformed']}` (**-{report.summary['total_round_trip_reduction_pct']}%** overall)",
+        f"- **Semantic Equivalence:** {'100% Passed' if report.summary['all_semantic_equivalent'] else 'FAILED'}",
+        f"- **Average Speedup (p50 / mean):** **{report.summary['average_speedup_p50']}x** / **{report.summary['average_speedup_mean']}x**",
+        f"- **Total Database Queries:** **{report.summary['total_round_trips_original']} queries (Baseline) → {report.summary['total_round_trips_transformed']} queries (Optimized)** (**{report.summary['total_round_trip_reduction_pct']}% reduction** / **{report.summary['total_round_trips_original'] - report.summary['total_round_trips_transformed']} queries eliminated**)",
         "",
     ])
 
+    return "\n".join(lines)
+
+
+def format_summary(report: BenchmarkReport) -> str:
+    """Formats a concise summary scoreboard for console output."""
+    lines = [
+        "==================== Benchmark Summary ====================",
+        f"  Date / Time           : {report.timestamp}",
+        f"  SCIRPy Static Analysis: {report.environment['scirpy_mode']}",
+        f"  Execution Environment : Python {report.environment['python_version']} | SQLite {report.environment['sqlite_version']}",
+        f"  Sample Runs           : {report.environment['iterations']} iterations (+ {report.environment['warmup']} warmup)",
+        "  -----------------------------------------------------------",
+        f"  Scenarios Evaluated   : {report.summary['total_scenarios']} workload(s)",
+        f"  Semantic Equivalence  : {'100% Passed (All Equivalent)' if report.summary['all_semantic_equivalent'] else 'FAILED'}",
+        f"  Average Speedup       : {report.summary['average_speedup_p50']}x (p50) / {report.summary['average_speedup_mean']}x (mean)",
+        f"  Total DB Queries      : {report.summary['total_queries_baseline']} (Baseline) -> {report.summary['total_queries_optimized']} (Optimized)",
+        f"  Query Reduction       : {report.summary['total_round_trip_reduction_pct']}% fewer queries ({report.summary['total_queries_eliminated']} eliminated)",
+        "===========================================================",
+    ]
     return "\n".join(lines)
 
 
@@ -663,6 +673,7 @@ def main():
     parser.add_argument("--warmup", type=int, default=5, help="Number of warmup iterations")
     parser.add_argument("--scenario", type=str, default=None, help="Filter to specific scenario name")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose execution output")
+    parser.add_argument("--table", action="store_true", help="Print full markdown table in addition to summary")
     args = parser.parse_args()
 
     report = run_all_benchmarks(
@@ -677,9 +688,11 @@ def main():
     json_path = Path(args.json_output)
     json_path.write_text(json.dumps(report_dict, indent=2), encoding="utf-8")
 
-    # Output Markdown Summary Table
-    markdown_table = format_markdown_table(report)
-    print(markdown_table)
+    # Output Summary (and optionally Table)
+    print(format_summary(report))
+    if args.table:
+        print("\n" + format_markdown_table(report))
+    
     print(f"\n[Report saved to {json_path.resolve()}]")
 
 

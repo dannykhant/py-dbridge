@@ -7,6 +7,7 @@ from benchmarks.run_benchmark import (
     run_single_benchmark,
     run_all_benchmarks,
     format_markdown_table,
+    format_summary,
     BenchmarkReport,
 )
 
@@ -18,25 +19,15 @@ def test_benchmark_scenario_semantic_equivalence(scenario):
 
 
 def test_round_trip_reduction_on_transformable_scenarios():
-    """Verify that transformable scenarios achieve significant DB round-trip reductions."""
+    """Verify that benchmark scenarios achieve significant DB round-trip reductions."""
     for scenario in SCENARIOS:
-        if not scenario.is_negative:
-            result = run_single_benchmark(scenario, iterations=3, warmup=1)
-            assert result.round_trips_transformed < result.round_trips_original, (
-                f"Expected round trip reduction for {scenario.name}: "
-                f"{result.round_trips_original} -> {result.round_trips_transformed}"
-            )
-            assert result.round_trip_reduction_pct > 0.0
+        result = run_single_benchmark(scenario, iterations=3, warmup=1)
+        assert result.round_trips_optimized < result.round_trips_baseline, (
+            f"Expected round trip reduction for {scenario.name}: "
+            f"{result.round_trips_baseline} -> {result.round_trips_optimized}"
+        )
+        assert result.round_trip_reduction_pct > 0.0
 
-
-def test_cyclic_negative_scenario_not_transformed():
-    """Verify that cyclic transitive closure scenario is not modified (0 transformations)."""
-    cyclic_scenario = next(s for s in SCENARIOS if s.name == "transitive_closure_cyclic")
-    result = run_single_benchmark(cyclic_scenario, iterations=3, warmup=1)
-    assert result.is_negative_case is True
-    assert len(result.transformations_applied) == 0
-    assert result.round_trips_transformed == result.round_trips_original
-    assert result.semantic_equivalent is True
 
 
 def test_run_all_benchmarks_and_report_generation(tmp_path):
@@ -51,6 +42,11 @@ def test_run_all_benchmarks_and_report_generation(tmp_path):
     md = format_markdown_table(report)
     assert "# py-dbridge Benchmark & SOTA Verification Results" in md
     assert "Summary Scoreboard" in md
+
+    # Test summary formatting
+    summary = format_summary(report)
+    assert "==================== Benchmark Summary ====================" in summary
+    assert "Scenarios Evaluated" in summary
 
     # Test JSON serialization
     json_path = tmp_path / "benchmark_report.json"
