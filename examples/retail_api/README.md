@@ -9,6 +9,20 @@ The example intentionally uses a code + SQL design:
 - `sql/queries.sql` contains the list and reporting queries.
 - `sql/seed.sql` provides deterministic fixture data.
 
+## Transformation rules covered
+
+`app.py` is also an input corpus for scirpy. Each handler below is written so the
+transformation engine exercises one of the five DBridge rules (the engine
+rewrites the whole module at once):
+
+| Rule                 | Handler / code block                                            |
+| -------------------- | -------------------------------------------------------------- |
+| Loop Splitting       | `POST /orders` — per-product `SELECT` in a `for` loop          |
+| Query Rewrite        | `GET /products/bulk` — single-row `SELECT` rewritten to `IN`   |
+| Conditional Handling | `GET /products/availability` — `SELECT` guarded by an `if`     |
+| Statement Reordering | `GET /reports/restock-cost` — PRE before / POST after execute  |
+| While Loop Support   | `GET /reports/low-stock` — `SELECT` inside a `while` loop      |
+
 ## Run
 
 From the repository root, install the project and development dependencies:
@@ -46,6 +60,18 @@ curl http://127.0.0.1:8000/orders/1
 
 # Show units sold and revenue by product.
 curl http://127.0.0.1:8000/reports/product-sales
+
+# Look up several products in one call (Query Rewrite: id IN (...)).
+curl 'http://127.0.0.1:8000/products/bulk?ids=1,2'
+
+# Look up products, skipping non-positive ids (Conditional Handling).
+curl 'http://127.0.0.1:8000/products/availability?ids=1,-1,2'
+
+# Show restock cost per product (Statement Reordering).
+curl 'http://127.0.0.1:8000/reports/restock-cost?threshold=5'
+
+# Walk the product list by index to find low-stock items (While Loop Support).
+curl http://127.0.0.1:8000/reports/low-stock
 ```
 
 ## Check correctness
