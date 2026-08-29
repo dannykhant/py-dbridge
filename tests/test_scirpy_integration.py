@@ -87,7 +87,7 @@ while category != -1:
 '''
     source_file = tmp_path / "test_loop.py"
     source_file.write_text(code, encoding="utf-8")
-    analysis = run_analysis({}, source_file)
+    analysis = run_analysis(source_file)
     assert analysis.scirpy_facts is not None
     assert len(analysis.scirpy_facts.loops) > 0
     loop = analysis.scirpy_facts.loops[0]

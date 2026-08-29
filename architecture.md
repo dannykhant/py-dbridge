@@ -156,7 +156,7 @@ graph LR
 - **Role:** Hybrid coordinator uniting Python AST analysis with Java SCIRPy static analysis.
 - **Key Functions & Classes:**
   - [`AnalysisResult`](src/analyzer.py#L24-L42): Complete analysis state containing candidate queries, data dependencies, transformable queries, statement facts, and reordering directives.
-  - [`run_analysis(ast_json, source_path, source_code) -> AnalysisResult`](src/analyzer.py#L60-L169): Detects queries, invokes SCIRPy via py4j, merges external def-use/ordering facts with Python AST analysis, checks for cyclic dependencies, and filters candidate queries.
+  - [`run_analysis(source_path, source_code) -> AnalysisResult`](src/analyzer.py#L60-L169): Detects queries, invokes SCIRPy via py4j, merges external def-use/ordering facts with Python AST analysis, checks for cyclic dependencies, and filters candidate queries.
 
 ### 8. [`query_rewriter.py`](src/query_rewriter.py)
 - **Role:** Set-oriented SQL transformation, parameter batching, and projection adjustment.

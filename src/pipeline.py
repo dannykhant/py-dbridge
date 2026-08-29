@@ -24,7 +24,6 @@ def run_pipeline(source: Path, output: Path | None = None,
     6. Generate output Python code
     """
     from src.source_reader import read_source
-    from src.ast_to_json import source_to_json
     from src.analyzer import run_analysis
     from src.transformer import apply_transformations
     from src.code_generator import generate_code
@@ -35,8 +34,7 @@ def run_pipeline(source: Path, output: Path | None = None,
     current_code = result.original_code
     all_transformations = []
     
-    ast_json = source_to_json(current_code, source)
-    analysis = run_analysis(ast_json, source, source_code=current_code)
+    analysis = run_analysis(source, source_code=current_code)
     if analysis.transformable_queries:
         transformed_ir = apply_transformations(analysis, db_type)
         current_code = generate_code(transformed_ir)

@@ -7,7 +7,7 @@ from src.code_generator import generate_code
 def run_transform(tmp_path, code, dialect="postgres"):
     f = tmp_path / "app.py"
     f.write_text(code, encoding="utf-8")
-    analysis = run_analysis({}, f)
+    analysis = run_analysis(f)
     transformed_ir = apply_transformations(analysis, dialect)
     return generate_code(transformed_ir)
 
@@ -76,7 +76,7 @@ while curr is not None:
 '''
     f = tmp_path / "app.py"
     f.write_text(code, encoding="utf-8")
-    analysis = run_analysis({}, f)
+    analysis = run_analysis(f)
     assert analysis.cyclic is True
     assert len(analysis.transformable_queries) == 0
     transformed_ir = apply_transformations(analysis, "postgres")
@@ -93,7 +93,7 @@ for pid in product_ids:
 '''
     f = tmp_path / "app.py"
     f.write_text(code, encoding="utf-8")
-    analysis = run_analysis({}, f)
+    analysis = run_analysis(f)
     
     # Inject SCIRPy facts declaring this query cyclic
     facts_dict = {
@@ -125,7 +125,7 @@ for pid in product_ids:
 '''
     f = tmp_path / "app.py"
     f.write_text(code, encoding="utf-8")
-    analysis = run_analysis({}, f)
+    analysis = run_analysis(f)
     
     # Custom SCIRPy statement order (b=2 before a=1)
     facts_dict = {

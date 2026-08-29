@@ -177,7 +177,7 @@ for product_id in product_ids:
     f = tmp_path / "app.py"
     f.write_text(code, encoding="utf-8")
     os.environ["PYDBRIDGE_NO_SCIRPY"] = "1"
-    analysis = run_analysis({}, f)
+    analysis = run_analysis(f)
     del os.environ["PYDBRIDGE_NO_SCIRPY"]
     
     # Inject stmtOrder that reverses pre statements: b=2 before a=1
@@ -199,7 +199,7 @@ for pid in pids:
     f = tmp_path / "app.py"
     f.write_text(code, encoding="utf-8")
     os.environ["PYDBRIDGE_NO_SCIRPY"] = "1"
-    analysis = run_analysis({}, f)
+    analysis = run_analysis(f)
     del os.environ["PYDBRIDGE_NO_SCIRPY"]
     
     assert hasattr(analysis, "deps")

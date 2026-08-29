@@ -57,11 +57,14 @@ def extract_stmt_facts(facts_json: dict) -> dict[int, StmtFacts]:
                     )
     return result
 
-def run_analysis(ast_json: dict, source_path: Path, source_code: str | None = None) -> AnalysisResult:
+def run_analysis(source_path: Path, source_code: str | None = None) -> AnalysisResult:
     """Run combined Python + SCIRPy analysis."""
     if source_code is None:
         source_code = source_path.read_text(encoding="utf-8")
-    tree = ast.parse(source_code, filename=str(source_path))
+        
+    filename = str(source_path)
+    source_name = source_path.stem
+    tree = ast.parse(source_code, filename=filename)
     
     # 1. Detect query patterns in loops
     detector = QueryPatternDetector()
@@ -90,7 +93,7 @@ def run_analysis(ast_json: dict, source_path: Path, source_code: str | None = No
         
         scirpy_result = run_scirpy_analysis(
             json_ast_path=json_path,
-            source_name=source_path.stem,
+            source_name=source_name,
             output_dir=tmp_dir,
             data_dir=project_root / "scirpy" / "parsePythonIR" / "src"
         )

@@ -38,7 +38,7 @@ while category != -1:
     source_file = tmp_path / "test_non_cyclic.py"
     source_file.write_text(code, encoding="utf-8")
 
-    analysis = run_analysis({}, source_file)
+    analysis = run_analysis(source_file)
 
     assert analysis.scirpy_facts is not None, "Expected scirpy_facts to be present"
     assert len(analysis.scirpy_facts.loops) > 0, "Expected at least one loop in scirpy_facts.loops"
@@ -82,7 +82,7 @@ while node:
     source_file = tmp_path / "test_cyclic.py"
     source_file.write_text(code, encoding="utf-8")
 
-    analysis = run_analysis({}, source_file)
+    analysis = run_analysis(source_file)
 
     assert analysis.scirpy_facts is not None, "Expected scirpy_facts to be present"
     assert len(analysis.scirpy_facts.loops) > 0, "Expected at least one loop in scirpy_facts.loops"

@@ -15,7 +15,7 @@ for product_id in product_ids:
 '''
     f = tmp_path / "app.py"
     f.write_text(code, encoding="utf-8")
-    analysis = run_analysis({}, f)
+    analysis = run_analysis(f)
     transformed_ir = apply_transformations(analysis, "postgres")
     
     assert "loop_splitting" in transformed_ir.applied_rules
@@ -38,7 +38,7 @@ while category != -1:
 '''
     f = tmp_path / "app.py"
     f.write_text(code, encoding="utf-8")
-    analysis = run_analysis({}, f)
+    analysis = run_analysis(f)
     transformed_ir = apply_transformations(analysis, "postgres")
     
     assert "loop_splitting" in transformed_ir.applied_rules
@@ -63,7 +63,7 @@ for pid in product_ids:
 '''
     f = tmp_path / "app.py"
     f.write_text(code, encoding="utf-8")
-    analysis = run_analysis({}, f)
+    analysis = run_analysis(f)
     transformed_ir = apply_transformations(analysis, "postgres")
     
     assert "loop_splitting" in transformed_ir.applied_rules
@@ -90,7 +90,7 @@ for pid in product_ids:
 '''
     f = tmp_path / "app.py"
     f.write_text(code, encoding="utf-8")
-    analysis = run_analysis({}, f)
+    analysis = run_analysis(f)
     transformed_ir = apply_transformations(analysis, "postgres")
     
     assert "loop_splitting" in transformed_ir.applied_rules
@@ -121,7 +121,7 @@ while i < len(pids):
 '''
     f = tmp_path / "app.py"
     f.write_text(code, encoding="utf-8")
-    analysis = run_analysis({}, f)
+    analysis = run_analysis(f)
     transformed_ir = apply_transformations(analysis, "postgres")
     
     assert "loop_splitting" in transformed_ir.applied_rules
@@ -146,7 +146,7 @@ for pid in product_ids:
 '''
     f = tmp_path / "app.py"
     f.write_text(code, encoding="utf-8")
-    analysis = run_analysis({}, f)
+    analysis = run_analysis(f)
     assert len(analysis.transformable_queries) == 0
     transformed_ir = apply_transformations(analysis, "postgres")
     assert transformed_ir.applied_rules == []
