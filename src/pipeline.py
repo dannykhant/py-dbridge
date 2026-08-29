@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from src.analyzer import AnalysisResult
+
 @dataclass
 class TransformResult:
     source_path: Path
@@ -10,6 +12,7 @@ class TransformResult:
     transformations: list[str] = field(default_factory=list)
     original_code: str = ""
     transformed_code: str = ""
+    analysis: AnalysisResult | None = None
 
 def run_pipeline(source: Path, output: Path | None = None,
                  db_type: str = "postgres", dry_run: bool = True) -> TransformResult:
@@ -35,10 +38,13 @@ def run_pipeline(source: Path, output: Path | None = None,
     all_transformations = []
     
     analysis = run_analysis(source, source_code=current_code)
+    result.analysis = analysis
     if analysis.transformable_queries:
         transformed_ir = apply_transformations(analysis, db_type)
         current_code = generate_code(transformed_ir)
-        all_transformations.extend(transformed_ir.applied_rules)
+        for r in transformed_ir.applied_rules:
+            if r not in all_transformations:
+                all_transformations.append(r)
 
 
     if "collections.defaultdict" in current_code and "import collections" not in current_code:

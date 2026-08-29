@@ -153,3 +153,24 @@ for pid in product_ids:
     transformed_code = generate_code(transformed_ir)
     assert "executemany" not in transformed_code
 
+def test_applied_rules_granularity(tmp_path):
+    """Test that applied_rules tracks loop_splitting, query_rewrite, statement_reordering, and conditional_handling."""
+    code = '''
+for pid in product_ids:
+    tag = compute_tag(pid)
+    if is_active(pid):
+        cursor.execute("SELECT name FROM products WHERE id = %s", (pid,))
+        row = cursor.fetchone()
+        results.append((tag, row))
+'''
+    f = tmp_path / "app.py"
+    f.write_text(code, encoding="utf-8")
+    analysis = run_analysis(f)
+    transformed_ir = apply_transformations(analysis, "postgres")
+    rules = transformed_ir.applied_rules
+    assert "loop_splitting" in rules
+    assert "query_rewrite" in rules
+    assert "statement_reordering" in rules
+    assert "conditional_handling" in rules
+
+

@@ -19,7 +19,7 @@ for item_id in item_ids:
     
     result = run_pipeline(f, None, "postgres", dry_run=True)
     
-    assert result.transformations.count("loop_splitting") == 2
+    assert "loop_splitting" in result.transformations
     
     transformed_code = result.transformed_code
     
@@ -75,7 +75,7 @@ conn.close()
     opt_file = tmp_path / "app_opt.py"
     result = run_pipeline(src_file, opt_file, "sqlite", dry_run=False)
     
-    assert result.transformations.count("loop_splitting") == 2
+    assert "loop_splitting" in result.transformations
     
     opt_code = opt_file.read_text(encoding="utf-8")
     assert "_pyd_iter_1 = iter(_pyd_result_map_1.get(item_id, []))" in opt_code

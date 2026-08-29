@@ -153,6 +153,10 @@ class ASTTransformer(ast.NodeTransformer):
         for q in self.transformable_queries:
             self.queries_by_loop[q.loop_node].append(q)
 
+    def _add_rule(self, rule: str):
+        if rule not in self.applied_rules:
+            self.applied_rules.append(rule)
+
     def _get_id(self) -> int:
         self._id_counter += 1
         return self._id_counter
@@ -165,16 +169,12 @@ class ASTTransformer(ast.NodeTransformer):
         qs = self.queries_by_loop.get(node)
         if not qs:
             return self.generic_visit(node)
-        for _ in qs:
-            self.applied_rules.append("loop_splitting")
         return self._transform_for_multi(node, qs)
 
     def visit_While(self, node: ast.While) -> ast.AST | list[ast.AST]:
         qs = self.queries_by_loop.get(node)
         if not qs:
             return self.generic_visit(node)
-        for _ in qs:
-            self.applied_rules.append("loop_splitting")
         return self._transform_while_multi(node, qs)
 
     # ------------------------------------------------------------------ #
@@ -376,6 +376,9 @@ class ASTTransformer(ast.NodeTransformer):
 
         stmt_order = self._get_stmt_order(queries[0])
         
+        self._add_rule("loop_splitting")
+        self._add_rule("query_rewrite")
+
         # Check if all queries are DML without result dependency
         all_dml = all(q.is_dml and not q.has_result_dependency for q in queries)
         if all_dml:
@@ -387,6 +390,10 @@ class ASTTransformer(ast.NodeTransformer):
             )
             pre_stmts = self._reorder_stmts([s for s, c in zip(loop.body, classifications) if c == "PRE"], stmt_order)
             post_stmts = self._reorder_stmts([s for s, c in zip(loop.body, classifications) if c == "POST"], stmt_order)
+            if pre_stmts or post_stmts or (stmt_order and len(loop.body) > 1):
+                self._add_rule("statement_reordering")
+            if any(isinstance(stmt, ast.If) for stmt in loop.body):
+                self._add_rule("conditional_handling")
 
             res = []
             for qc in query_contexts:
@@ -432,8 +439,12 @@ class ASTTransformer(ast.NodeTransformer):
             )
             for stmt in loop.body
         )
+        if has_guard:
+            self._add_rule("conditional_handling")
 
         pre_stmts = self._reorder_stmts([s for s, c in zip(loop.body, classifications) if c == "PRE"], stmt_order)
+        if pre_stmts or (stmt_order and len(loop.body) > 1):
+            self._add_rule("statement_reordering")
 
         # Batch queries and result maps
         batch_nodes = []
@@ -578,6 +589,9 @@ class ASTTransformer(ast.NodeTransformer):
         )
 
         stmt_order = self._get_stmt_order(queries[0])
+        self._add_rule("loop_splitting")
+        self._add_rule("query_rewrite")
+
         classifications = self._dep.classify_loop_stmts(
             loop.body,
             queries[0].execute_node,
@@ -588,6 +602,18 @@ class ASTTransformer(ast.NodeTransformer):
 
         pre_stmts = self._reorder_stmts([s for s, c in zip(loop.body, classifications) if c == "PRE"], stmt_order)
         adv_stmts = self._reorder_stmts([s for s, c in zip(loop.body, classifications) if c == "ADVANCE"], stmt_order)
+        if pre_stmts or adv_stmts or (stmt_order and len(loop.body) > 1):
+            self._add_rule("statement_reordering")
+        
+        has_guard = any(
+            isinstance(stmt, ast.If) and any(
+                any(child is qc.query.execute_node for child in ast.walk(stmt))
+                for qc in query_contexts
+            )
+            for stmt in loop.body
+        )
+        if has_guard:
+            self._add_rule("conditional_handling")
 
         # Determine context variable (LoopContextTable)
         ctx_var = None

@@ -40,6 +40,43 @@ class AnalysisResult:
     def stmt_order(self) -> list[int]:
         return self.stmtOrder
 
+    @property
+    def is_degraded(self) -> bool:
+        """True if SCIRPy was not used or failed/skipped, falling back to pure Python analysis."""
+        if self.scirpy_facts is None:
+            return True
+        if self.scirpy_analysis and self.scirpy_analysis.get("status") != 0:
+            return True
+        return False
+
+    @property
+    def engine(self) -> str:
+        """Name of the analysis engine used ('scirpy' or 'degraded')."""
+        return "degraded" if self.is_degraded else "scirpy"
+
+    def format_summary(self, applied_transformations: list[str] | None = None) -> str:
+        """Return a formatted summary box for CLI output."""
+        engine_str = "Degraded (Pure Python AST)" if self.is_degraded else "SCIRPy (Java Static Analysis)"
+        total_queries = len(self.queries_in_loops)
+        transformable = len(self.transformable_queries)
+        cyclic_str = "Yes (preserves iterative execution)" if self.cyclic else "No"
+        if applied_transformations:
+            seen = set()
+            distinct_rules = [r for r in applied_transformations if not (r in seen or seen.add(r))]
+            rules_str = ", ".join(distinct_rules)
+        else:
+            rules_str = "None"
+
+        lines = [
+            "===================== Analysis Result =====================",
+            f"  Analysis Engine       : {engine_str}",
+            f"  Queries in Loops      : {total_queries} ({transformable} transformable)",
+            f"  Cyclic Dependency     : {cyclic_str}",
+            f"  Applied Rules         : {rules_str}",
+            "===========================================================",
+        ]
+        return "\n".join(lines)
+
 def extract_stmt_facts(facts_json: dict) -> dict[int, StmtFacts]:
     result = {}
     if not facts_json or "classes" not in facts_json:
