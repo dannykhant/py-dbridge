@@ -92,3 +92,54 @@ class DictExportVisitor:
                 "n": val.real,
                 "i": val.imag
             }
+
+    def visit_Constant(self, node):
+        val = node.value
+        lineno = getattr(node, "lineno", None)
+        col_offset = getattr(node, "col_offset", None)
+        if isinstance(val, bool) or val is None:
+            return {
+                self.ast_type_field: "NameConstant",
+                "value": str(val),
+                "lineno": lineno,
+                "col_offset": col_offset,
+            }
+        elif isinstance(val, (int, float, complex)):
+            if isinstance(val, int):
+                n_dict = {
+                    self.ast_type_field: "int",
+                    "n": val,
+                    "n_str": str(val),
+                }
+            elif isinstance(val, float):
+                n_dict = {
+                    self.ast_type_field: "float",
+                    "n": val
+                }
+            else:
+                n_dict = {
+                    self.ast_type_field: "complex",
+                    "n": val.real,
+                    "i": val.imag
+                }
+            return {
+                self.ast_type_field: "Num",
+                "n": n_dict,
+                "lineno": lineno,
+                "col_offset": col_offset,
+            }
+        elif isinstance(val, str):
+            return {
+                self.ast_type_field: "Str",
+                "s": val,
+                "lineno": lineno,
+                "col_offset": col_offset,
+            }
+        elif isinstance(val, bytes):
+            return {
+                self.ast_type_field: "Bytes",
+                "s": str(val),
+                "lineno": lineno,
+                "col_offset": col_offset,
+            }
+        return self.default_visit(node)

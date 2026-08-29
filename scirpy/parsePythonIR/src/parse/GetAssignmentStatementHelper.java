@@ -177,6 +177,11 @@ public class GetAssignmentStatementHelper {
                 assignStmt.setRHS(lambdaExpr);
                 System.out.println("break for Lambda");
                 break;
+            case "NameConstant":
+                GenericExpressionParser gepNameConst = new GenericExpressionParser();
+                assignStmt.setRHS(gepNameConst.getNameConstant(valueObj));
+                System.out.println("break for NameConstant");
+                break;
             case "Constant":
                 //TODO verify this example 6
                 GenericExpressionParser gep=new GenericExpressionParser();

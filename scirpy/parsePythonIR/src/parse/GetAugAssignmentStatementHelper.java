@@ -113,7 +113,16 @@ public class GetAugAssignmentStatementHelper  {
                 assignStmt.setRHS(listComp);
                 System.out.println("break for list");
                 break;
-
+            case "NameConstant":
+                GenericExpressionParser gepAugNameConst = new GenericExpressionParser();
+                assignStmt.setRHS(gepAugNameConst.getNameConstant(valueObj));
+                System.out.println("break for NameConstant");
+                break;
+            case "Constant":
+                GenericExpressionParser gepAugConst = new GenericExpressionParser();
+                assignStmt.setRHS(gepAugConst.getConstant(valueObj));
+                System.out.println("break for Constant");
+                break;
 
             default :
                 System.out.println(typeofValue+ " still Not implemented in assignment");

@@ -72,8 +72,9 @@ def test_conditional_else_branch_benchmark_scenario():
             INSERT INTO users (id, name) VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie'), (4, 'Dave');
         """,
         source_template="""
+uids = [1, 2, 3, 4]
 results = []
-for uid in [1, 2, 3, 4]:
+for uid in uids:
     if uid % 2 == 0:
         cursor.execute("SELECT name FROM users WHERE id = ?", (uid,))
         row = cursor.fetchone()
@@ -100,8 +101,9 @@ def test_dml_rowcount_benchmark_scenario_negative():
             INSERT INTO inventory (id, stock) VALUES (1, 10), (2, 20);
         """,
         source_template="""
+pids = [1, 2]
 results = []
-for pid in [1, 2]:
+for pid in pids:
     cursor.execute("UPDATE inventory SET stock = stock - 1 WHERE id = ?", (pid,))
     results.append(cursor.rowcount)
 """,

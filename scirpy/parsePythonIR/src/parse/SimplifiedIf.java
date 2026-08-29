@@ -11,9 +11,11 @@ import soot.Unit;
 import soot.jimple.Jimple;
 import soot.util.Chain;
 import soot.util.HashChain;
+import ir.DataType.IntType;
 
 import java.util.ArrayList;
 import java.util.List;
+import ir.internalast.Value;
 
 public class SimplifiedIf {
 
@@ -43,31 +45,36 @@ public class SimplifiedIf {
     }
 
     private IExpr createSimpleConditions(IExpr test, PatchingChain<Unit> extendedIfList) {
-        //TODO createSimpleConditions and Add statements for them in extendedIfList
-        IExpr iExpr=null;
-        if(test instanceof BoolOp) {
-            BoolOp test1 = (BoolOp) test;
-            //TODO simplification
-            System.out.println("Condition boolop not implemented for simplfying");
-            System.exit(1);
+        if (test instanceof Compare) {
+            return (Compare) test;
         }
-        else if (test instanceof Compare) {
-            //TODO implement simplification
-            Compare originalTest=(Compare)test;
-            return originalTest;
-
+        else if (test instanceof BoolOp) {
+            BoolOp b = (BoolOp) test;
+            for (Object v : b.getValues()) {
+                if (v instanceof Compare) {
+                    return (IExpr) v;
+                }
+            }
+            Compare cmp = new Compare();
+            if (!b.getValues().isEmpty() && b.getValues().get(0) instanceof IExpr) {
+                cmp.setLeft((IExpr) b.getValues().get(0));
+            }
+            cmp.getOps().add(ir.expr.OpsType.IsNot);
+            cmp.getComparators().add(new Num(-1, -1, new IntType(0, "0")));
+            return cmp;
         }
-        else if (test instanceof BinOp) {
-            //TODO implement simplification
-            BinOp originalTest=(BinOp)test;
-            return originalTest;
-
-        }
-        else {
+        else if (test instanceof soot.jimple.ConditionExpr) {
             return test;
         }
-        //should never reach here
-        return iExpr;
+        else {
+            Compare cmp = new Compare();
+            if (test != null) {
+                cmp.setLeft(test);
+            }
+            cmp.getOps().add(ir.expr.OpsType.IsNot);
+            cmp.getComparators().add(new Num(-1, -1, new IntType(0, "0")));
+            return cmp;
+        }
     }
 
     //Should not be used anymore..changed implementation

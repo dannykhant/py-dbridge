@@ -13,10 +13,14 @@ else
     JAR_CMD="jar"
 fi
 
-$JAVAC_CMD -source 1.8 -target 1.8 -cp "scirpy/lib/*" \
-  $(find scirpy/parsePythonIR/src -name "*.java") \
-  -d scirpy/out/production/parsePythonIR
+find scirpy/parsePythonIR/src -name "*.java" > /tmp/java_sources.txt
 
-cd scirpy/out/production/parsePythonIR
-$JAR_CMD uf ../../artifacts/scirpy_jar/scirpy.jar .
+mkdir -p scirpy/out/production/parsePythonIR
+mkdir -p scirpy/out/production/scirpy
+mkdir -p scirpy/out/artifacts/scirpy_jar
+
+$JAVAC_CMD -source 1.8 -target 1.8 -cp "scirpy/lib/*" @/tmp/java_sources.txt -d scirpy/out/production/parsePythonIR
+$JAVAC_CMD -source 1.8 -target 1.8 -cp "scirpy/lib/*" @/tmp/java_sources.txt -d scirpy/out/production/scirpy
+
+(cd scirpy/out/production/parsePythonIR && $JAR_CMD uf ../../artifacts/scirpy_jar/scirpy.jar .)
 echo "Build complete."

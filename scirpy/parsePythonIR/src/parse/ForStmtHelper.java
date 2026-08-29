@@ -41,7 +41,22 @@ public class ForStmtHelper {
         NopStmt nopLoopBodyEnd = new NopStmt();//Jimple.v().newNopStmt();
 
 
-        IfStmt ifStmt=new IfStmt(forStmtPy.getIterator(),nopLoopBodyBegin);
+        IExpr iter = forStmtPy.getIterator();
+        soot.Value condVal;
+        if (iter instanceof soot.jimple.ConditionExpr) {
+            condVal = (soot.Value) iter;
+        } else {
+            ir.expr.Compare cmp = new ir.expr.Compare();
+            if (iter != null) {
+                cmp.setLeft(iter);
+            } else if (forStmtPy.getTarget() != null) {
+                cmp.setLeft(forStmtPy.getTarget());
+            }
+            cmp.getOps().add(ir.expr.OpsType.IsNot);
+            cmp.getComparators().add(new Num(-1, -1, new IntType(0, "0")));
+            condVal = cmp;
+        }
+        IfStmt ifStmt = new IfStmt(condVal, nopLoopBodyBegin);
         ifStmt.setPyStmt(forStmtPy);
         ifStmt.setTypePyStmt("for");
         GotoStmt gotoAfterHeader = new GotoStmt(nopLoopBodyEnd);//Jimple.v().newGotoStmt(nopLoopBodyEnd);

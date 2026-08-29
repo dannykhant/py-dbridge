@@ -41,22 +41,13 @@ class AnalysisResult:
         return self.stmtOrder
 
     @property
-    def is_degraded(self) -> bool:
-        """True if SCIRPy was not used or failed/skipped, falling back to pure Python analysis."""
-        if self.scirpy_facts is None:
-            return True
-        if self.scirpy_analysis and self.scirpy_analysis.get("status") != 0:
-            return True
-        return False
-
-    @property
     def engine(self) -> str:
         """Name of the analysis engine used ('scirpy' or 'degraded')."""
-        return "degraded" if self.is_degraded else "scirpy"
+        return "scirpy"
 
     def format_summary(self, applied_transformations: list[str] | None = None) -> str:
         """Return a formatted summary box for CLI output."""
-        engine_str = "Degraded (Pure Python AST)" if self.is_degraded else "SCIRPy (Java Static Analysis)"
+        engine_str = "SCIRPy (Java Static Analysis)"
         total_queries = len(self.queries_in_loops)
         transformable = len(self.transformable_queries)
         cyclic_str = "Yes (preserves iterative execution)" if self.cyclic else "No"
@@ -108,39 +99,32 @@ def run_analysis(source_path: Path, source_code: str | None = None) -> AnalysisR
     queries = detector.detect(tree)
     
     # 2. Invoke SCIRPy Java static analysis
-    scirpy_info = None
-    stmt_facts = None
-    opt_code_path = None
-    parsed_facts = None
-    try:
-        import json
-        from src.scirpy_bridge import run_scirpy_analysis
-        from src.ast_to_json import ast_to_dict
+    import json
+    from src.scirpy_bridge import run_scirpy_analysis
+    from src.ast_to_json import ast_to_dict
+    import uuid
 
-        import uuid
-        project_root = Path(__file__).resolve().parents[1]
-        call_id = uuid.uuid4().hex[:8]
-        tmp_dir = project_root / ".scirpy_tmp" / f"{source_path.stem}_{call_id}"
-        tmp_dir.mkdir(parents=True, exist_ok=True)
+    project_root = Path(__file__).resolve().parents[1]
+    call_id = uuid.uuid4().hex[:8]
+    tmp_dir = project_root / ".scirpy_tmp" / f"{source_path.stem}_{call_id}"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
 
-        json_path = tmp_dir / f"{source_path.stem}.json"
-        json_path.write_text(
-            json.dumps(ast_to_dict(tree), indent=2), encoding="utf-8"
-        )
-        
-        scirpy_result = run_scirpy_analysis(
-            json_ast_path=json_path,
-            source_name=source_name,
-            output_dir=tmp_dir,
-            data_dir=project_root / "scirpy" / "parsePythonIR" / "src"
-        )
-        scirpy_info = {"status": 0, "json_ast_path": str(json_path), "analysis_json_path": scirpy_result.get("analysis_json_path")}
-        facts_dict = scirpy_result.get("facts", {})
-        stmt_facts = extract_stmt_facts(facts_dict)
-        parsed_facts = load_scirpy_facts(facts_dict)
-        opt_code_path = scirpy_result.get("opt_code_path")
-    except Exception as exc:
-        scirpy_info = {"status": "error_or_skipped", "reason": str(exc)}
+    json_path = tmp_dir / f"{source_path.stem}.json"
+    json_path.write_text(
+        json.dumps(ast_to_dict(tree), indent=2), encoding="utf-8"
+    )
+    
+    scirpy_result = run_scirpy_analysis(
+        json_ast_path=json_path,
+        source_name=source_name,
+        output_dir=tmp_dir,
+        data_dir=project_root / "scirpy" / "parsePythonIR" / "src"
+    )
+    scirpy_info = {"status": 0, "json_ast_path": str(json_path), "analysis_json_path": scirpy_result.get("analysis_json_path")}
+    facts_dict = scirpy_result.get("facts", {})
+    stmt_facts = extract_stmt_facts(facts_dict)
+    parsed_facts = load_scirpy_facts(facts_dict)
+    opt_code_path = scirpy_result.get("opt_code_path")
 
     # 3. Analyze dependencies for each loop containing a query
     dep_analyzer = DependencyAnalyzer()

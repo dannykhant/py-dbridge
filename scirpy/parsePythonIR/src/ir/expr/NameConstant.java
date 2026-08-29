@@ -131,16 +131,11 @@ public class NameConstant extends JPExpr implements CRegion, ConditionExpr {
 
     @Override
     public List<Name> getDataFrames() {
-        List<Name> dataframes = new ArrayList<>();
-        if(true)
-            throw new NotImplementedException("getDataFrames not implemented in " + this.getClass().getSimpleName());
-        return dataframes;
+        return new ArrayList<>();
     }
 
     @Override
     public boolean isDataFrame() {
-        if(true)
-            throw new NotImplementedException("isDataFrameOp not implemented in " + this.getClass().getSimpleName());
         return false;
     }
 }

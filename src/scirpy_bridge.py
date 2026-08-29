@@ -65,34 +65,37 @@ def _get_gateway():
         "PythonGateWay.ScaPaGateway"
     ]
     
-    _gateway_proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    _gateway = JavaGateway(gateway_parameters=GatewayParameters(port=25333))
-
     timeout_sec = float(os.environ.get("PYDBRIDGE_JVM_TIMEOUT", "10.0"))
-    max_retries = max(10, int(timeout_sec / 0.1))
-    connected = False
-    for _ in range(max_retries):
-        try:
-            _gateway.jvm.System.currentTimeMillis()
-            connected = True
-            break
-        except Exception:
-            time.sleep(0.1)
+    
+    for attempt in range(3):
+        _gateway_proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        _gateway = JavaGateway(gateway_parameters=GatewayParameters(port=25333))
 
-    if not connected:
+        max_retries = max(10, int(timeout_sec / 0.1))
+        connected = False
+        for _ in range(max_retries):
+            if _gateway_proc.poll() is not None and isinstance(_gateway_proc.poll(), int):
+                break
+            try:
+                _gateway.jvm.System.currentTimeMillis()
+                connected = True
+                break
+            except Exception:
+                time.sleep(0.1)
+
+        if connected:
+            return _gateway, _gateway.entry_point
+
         try:
-            _gateway_proc.terminate()
+            _gateway_proc.kill()
             _gateway_proc.wait(timeout=1)
         except Exception:
-            try:
-                _gateway_proc.kill()
-            except Exception:
-                pass
+            pass
         _gateway_proc = None
         _gateway = None
-        raise RuntimeError("Failed to connect to Py4J gateway")
+        time.sleep(0.5)
 
-    return _gateway, _gateway.entry_point
+    raise RuntimeError("Failed to connect to Py4J gateway")
 
 def _shutdown_gateway():
     """Shutdown the persistent Py4J gateway."""
@@ -120,8 +123,6 @@ atexit.register(_shutdown_gateway)
 def run_scirpy_analysis(json_ast_path: Path, source_name: str,
                         output_dir: Path, data_dir: Path) -> dict:
     """Invoke SCIRPy Java analysis on the JSON AST using Py4J gateway."""
-    if os.environ.get("PYDBRIDGE_NO_SCIRPY") == "1":
-        return {"facts": {}, "analysis_json_path": None, "opt_code_path": None}
     try:
         gateway, app = _get_gateway()
         timeout = float(os.environ.get("PYDBRIDGE_JVM_TIMEOUT", "10.0"))

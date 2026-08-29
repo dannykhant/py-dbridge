@@ -9,13 +9,22 @@ class TestEqSQLIntegration(unittest.TestCase):
     
     def setUp(self):
         import src.scirpy_bridge as sb
+        self._orig_gw = sb._gateway
+        self._orig_proc = sb._gateway_proc
         sb._gateway = None
         sb._gateway_proc = None
+
+    def tearDown(self):
+        import src.scirpy_bridge as sb
+        # If mock gateway was set during test, restore original live gateway
+        sb._gateway = self._orig_gw
+        sb._gateway_proc = self._orig_proc
 
     @patch('src.scirpy_bridge.time.sleep')
     @patch('src.scirpy_bridge.JavaGateway')
     @patch('src.scirpy_bridge.subprocess.Popen')
     def test_eqsql_optimize_query_success(self, mock_popen, mock_gateway, mock_sleep):
+        mock_popen.return_value.poll.return_value = None
         mock_app = mock_gateway.return_value.entry_point
         mock_app.optimizeQuery.return_value = "SELECT * FROM optimized_table"
         
@@ -26,6 +35,7 @@ class TestEqSQLIntegration(unittest.TestCase):
     @patch('src.scirpy_bridge.JavaGateway')
     @patch('src.scirpy_bridge.subprocess.Popen')
     def test_eqsql_optimize_query_fallback_on_exception(self, mock_popen, mock_gateway, mock_sleep):
+        mock_popen.return_value.poll.return_value = None
         mock_app = mock_gateway.return_value.entry_point
         mock_app.optimizeQuery.side_effect = Exception("EqSQL Error")
         
@@ -37,6 +47,7 @@ class TestEqSQLIntegration(unittest.TestCase):
     @patch('src.scirpy_bridge.JavaGateway')
     @patch('src.scirpy_bridge.subprocess.Popen')
     def test_gateway_reuse(self, mock_popen, mock_gateway, mock_sleep):
+        mock_popen.return_value.poll.return_value = None
         mock_app = mock_gateway.return_value.entry_point
         mock_app.optimizeQuery.return_value = "SELECT 1"
         
@@ -87,9 +98,6 @@ class TestEqSQLIntegration(unittest.TestCase):
 
     def test_live_jvm_optimize_query(self):
         import src.scirpy_bridge as sb
-        # Ensure clean state
-        if sb._gateway:
-            sb._shutdown_gateway()
 
         sql1 = "SELECT count(*) FROM parts WHERE category = ? GROUP BY category"
         opt1 = eqsql_optimize_query(sql1, "sqlite")
@@ -109,8 +117,6 @@ class TestEqSQLIntegration(unittest.TestCase):
         sql4 = "SELECT count(a) + 1 FROM parts WHERE category = ?"
         opt4 = eqsql_optimize_query(sql4, "sqlite")
         self.assertEqual(opt4, sql4)
-
-        sb._shutdown_gateway()
 
 if __name__ == '__main__':
     unittest.main()

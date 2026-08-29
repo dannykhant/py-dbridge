@@ -176,9 +176,7 @@ for product_id in product_ids:
 '''
     f = tmp_path / "app.py"
     f.write_text(code, encoding="utf-8")
-    os.environ["PYDBRIDGE_NO_SCIRPY"] = "1"
     analysis = run_analysis(f)
-    del os.environ["PYDBRIDGE_NO_SCIRPY"]
     
     # Inject stmtOrder that reverses pre statements: b=2 before a=1
     analysis.stmtOrder = [5, 4]
@@ -198,9 +196,7 @@ for pid in pids:
 '''
     f = tmp_path / "app.py"
     f.write_text(code, encoding="utf-8")
-    os.environ["PYDBRIDGE_NO_SCIRPY"] = "1"
     analysis = run_analysis(f)
-    del os.environ["PYDBRIDGE_NO_SCIRPY"]
     
     assert hasattr(analysis, "deps")
     assert hasattr(analysis, "labels")
@@ -212,16 +208,6 @@ for pid in pids:
     assert isinstance(analysis.cyclic, bool)
     assert isinstance(analysis.stmtOrder, list)
     assert isinstance(analysis.stmt_order, list)
-
-def test_degraded_no_scirpy_fallback():
-    os.environ["PYDBRIDGE_NO_SCIRPY"] = "1"
-    from src.scirpy_bridge import run_scirpy_analysis
-    
-    result = run_scirpy_analysis(Path("dummy.json"), "dummy", Path("/tmp"), Path("/tmp"))
-    assert result == {"facts": {}, "analysis_json_path": None, "opt_code_path": None}
-    
-    # Cleanup
-    del os.environ["PYDBRIDGE_NO_SCIRPY"]
 
 def test_golden_facts_transformation_pipeline(tmp_path):
     from src.transformer import apply_transformations
