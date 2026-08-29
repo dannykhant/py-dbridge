@@ -48,7 +48,18 @@ def run_pipeline(source: Path, output: Path | None = None,
 
 
     if "collections.defaultdict" in current_code and "import collections" not in current_code:
-        current_code = "import collections\n" + current_code
+        # Must be inserted after any `from __future__` import, which is only
+        # legal as the first statement in the module.
+        lines = current_code.splitlines(keepends=True)
+        insert_at = 0
+        for i, line in enumerate(lines):
+            stripped = line.lstrip()
+            if stripped.startswith("from __future__"):
+                insert_at = i + 1
+            else:
+                break
+        lines.insert(insert_at, "import collections\n")
+        current_code = "".join(lines)
         
     result.transformed_code = current_code
     result.transformations = all_transformations

@@ -74,6 +74,41 @@ for pid in product_ids:
     assert queries[0].has_result_dependency is False
     assert queries[0].is_transformable is True
 
+def test_detect_fstring_query_in_loop():
+    # Smallbank-style N+1 over a loop variable interpolated into the table name.
+    # The interpolation can't be statically resolved, so it is detected but
+    # marked non-transformable (left intact as a valid f-string loop).
+    code = '''
+for table in (SAVINGS, CHECKING):
+    cursor.execute(f"SELECT * FROM {table} WHERE custid = %s", (acct_id,))
+    row = cursor.fetchone()
+'''
+    tree = ast.parse(code)
+    detector = QueryPatternDetector()
+    queries = detector.detect(tree)
+    assert len(queries) == 1
+    assert queries[0].line_number == 3
+    assert "table" in queries[0].parameter_vars
+    assert "acct_id" in queries[0].parameter_vars
+    assert queries[0].is_dml is False
+    assert queries[0].is_transformable is False
+
+def test_detect_fstring_query_constant_table_transformable():
+    # N+1 where the interpolated table name is a statically-known constant:
+    # resolvable to valid static SQL, so it stays transformable.
+    code = '''
+TABLENAME_ACCOUNTS = "ACCOUNTS"
+for cid in (a, b):
+    cursor.execute(f"SELECT custid FROM {TABLENAME_ACCOUNTS} WHERE custid = %s", (cid,))
+    row = cursor.fetchone()
+'''
+    tree = ast.parse(code)
+    detector = QueryPatternDetector()
+    queries = detector.detect(tree)
+    assert len(queries) == 1
+    assert queries[0].query_string == "SELECT custid FROM ACCOUNTS WHERE custid = %s"
+    assert queries[0].is_transformable is True
+
 def test_detect_dml_with_lastrowid_dependency():
     code = '''
 for name in names:

@@ -95,7 +95,7 @@ def run_analysis(source_path: Path, source_code: str | None = None) -> AnalysisR
     tree = ast.parse(source_code, filename=filename)
     
     # 1. Detect query patterns in loops
-    detector = QueryPatternDetector()
+    detector = QueryPatternDetector(source_path=str(source_path))
     queries = detector.detect(tree)
     
     # 2. Invoke SCIRPy Java static analysis

@@ -7,6 +7,34 @@ Identifies:
 """
 import ast
 from dataclasses import dataclass, field
+from pathlib import Path
+
+
+def _read_text(path: str) -> str:
+    return Path(path).read_text(encoding="utf-8")
+
+
+def _parent_dir(path: str) -> Path:
+    return Path(path).resolve().parent
+
+
+def _resolve_module_file(mod: str, source_dir: str) -> str | None:
+    """Best-effort: locate a module's .py file on disk.
+
+    Searches the source directory and walks up its ancestors (mirroring the
+    `sys.path.insert` trick used by drivers that load sibling config modules).
+    """
+    leaf = mod.replace(".", "/")
+    base = Path(source_dir).resolve()
+    for dir_ in [base, *base.parents]:
+        direct = dir_ / (leaf + ".py")
+        if direct.exists():
+            return str(direct)
+        pkg = dir_ / leaf / "__init__.py"
+        if pkg.exists():
+            return str(pkg)
+    return None
+
 
 @dataclass
 class QueryInLoop:
@@ -26,13 +54,56 @@ class QueryPatternDetector(ast.NodeVisitor):
 
     DB_EXECUTE_METHODS = {"execute", "executemany"}
 
-    def __init__(self):
+    def __init__(self, source_path: str | None = None):
         self.queries_in_loops: list[QueryInLoop] = []
         self._loop_stack: list[ast.AST] = []
+        # Resolved string constant values (module-level + imported), used to
+        # turn f-string queries into static SQL so they can be rewritten.
+        self._constants: dict[str, str] = {}
+        if source_path is not None:
+            self._constants = self._collect_constants(ast.parse(
+                _read_text(source_path)), source_dir=str(_parent_dir(source_path)))
 
     def detect(self, tree: ast.AST) -> list[QueryInLoop]:
+        # Always resolve module-level string constants from the analyzed tree
+        # so same-file `NAME = "value"` interpolations become static SQL.
+        self._constants.update(self._collect_constants(tree, source_dir=""))
         self.visit(tree)
         return self.queries_in_loops
+
+    def _collect_constants(self, tree: ast.AST, source_dir: str) -> dict[str, str]:
+        """Collect module-level string-constant assignments and imported ones.
+
+        Handles `NAME = "value"` and `from mod import NAME` / `import mod` where
+        `mod` is a sibling .py file whose own top-level constants we read.
+        """
+        consts: dict[str, str] = {}
+        imported_modules: list[str] = []
+        for node in tree.body:
+            if isinstance(node, ast.Assign):
+                for t in node.targets:
+                    if isinstance(t, ast.Name) and isinstance(node.value, ast.Constant) \
+                            and isinstance(node.value.value, str):
+                        consts[t.id] = node.value.value
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.value, ast.Constant) \
+                    and isinstance(node.value.value, str) and isinstance(node.target, ast.Name):
+                consts[node.target.id] = node.value.value
+            elif isinstance(node, ast.ImportFrom):
+                mod = node.module or ""
+                imported_modules.append(mod)
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    imported_modules.append(alias.name)
+        for mod in imported_modules:
+            path = _resolve_module_file(mod, source_dir)
+            if path is None:
+                continue
+            try:
+                sub = ast.parse(_read_text(path))
+                consts.update(self._collect_constants(sub, str(_parent_dir(path))))
+            except (OSError, SyntaxError):
+                continue
+        return consts
 
     def visit_For(self, node: ast.For):
         self._loop_stack.append(node)
@@ -64,12 +135,20 @@ class QueryPatternDetector(ast.NodeVisitor):
 
         # Determine SQL query string if it is a constant string
         query_str = ""
+        fstring_vars: list[str] = []
+        fully_resolved = True
         first_arg = node.args[0]
         if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
             query_str = first_arg.value
         elif isinstance(first_arg, ast.Name):
             # We don't statically know the query, but we know it's a variable reference
             query_str = f"VAR:{first_arg.id}"
+        elif isinstance(first_arg, ast.JoinedStr):
+            # F-string query: resolve constants so we get a static SQL string.
+            # Interpolations that can't be statically resolved (e.g. a loop
+            # variable like `table`) make the query non-batchable -> not
+            # transformable, so the original f-string loop is left intact.
+            query_str, fstring_vars, fully_resolved = self._resolve_joined_str(first_arg)
         else:
             return None
 
@@ -81,6 +160,8 @@ class QueryPatternDetector(ast.NodeVisitor):
         if len(node.args) > 1:
             second_arg = node.args[1]
             parameter_vars = self._find_name_nodes(second_arg)
+        # Interpolated f-string identifiers are also query parameters (N+1 over them).
+        parameter_vars = list(set(parameter_vars + fstring_vars))
 
         # Find closest loop variable
         loop_node = self._loop_stack[-1]
@@ -101,6 +182,8 @@ class QueryPatternDetector(ast.NodeVisitor):
         is_transformable = True
         if query_str.startswith("VAR:"):
             is_transformable = False
+        if not fully_resolved:
+            is_transformable = False
         if is_dml and has_res_dep:
             is_transformable = False
 
@@ -115,6 +198,39 @@ class QueryPatternDetector(ast.NodeVisitor):
             is_transformable=is_transformable,
             is_dml=is_dml
         )
+
+    def _resolve_joined_str(self, node: ast.JoinedStr) -> tuple[str, list[str], bool]:
+        """Resolve an f-string query into (static_sql, interpolated_names, fully_resolved).
+
+        Constant parts and statically-known constants (module-level + imported) are
+        substituted into the SQL text. Any interpolation that cannot be resolved to a
+        literal (e.g. a loop variable such as `table`) is left as-is and flips
+        `fully_resolved` to False, marking the query as non-transformable.
+        """
+        parts: list[str] = []
+        names: list[str] = []
+        fully_resolved = True
+        for value in node.values:
+            if isinstance(value, ast.Constant):
+                parts.append(str(value.value))
+            elif isinstance(value, ast.FormattedValue):
+                expr = value.value
+                resolved = self._try_resolve_constant(expr)
+                if resolved is not None:
+                    parts.append(str(resolved))
+                else:
+                    fully_resolved = False
+                    parts.append("{" + ast.unparse(expr) + "}")
+                names.extend(self._find_name_nodes(expr))
+        return "".join(parts), list(set(names)), fully_resolved
+
+    def _try_resolve_constant(self, node: ast.AST) -> str | None:
+        """Best-effort: resolve a node to a static string constant value."""
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, ast.Name):
+            return self._constants.get(node.id)
+        return None
 
     def _find_name_nodes(self, node: ast.AST) -> list[str]:
         """Recursively find all Name nodes under an AST node to extract variable names."""
