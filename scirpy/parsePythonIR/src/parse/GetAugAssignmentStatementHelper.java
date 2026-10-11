@@ -124,6 +124,13 @@ public class GetAugAssignmentStatementHelper  {
                 System.out.println("break for Constant");
                 break;
 
+            case "BinOp":
+                BinOpParser binOpParser=new BinOpParser(valueObj);
+                IExpr binOp=binOpParser.getBinOp();
+                assignStmt.setRHS(binOp);
+                System.out.println("break for BinOp");
+                break;
+
             default :
                 System.out.println(typeofValue+ " still Not implemented in assignment");
                 exit(1);

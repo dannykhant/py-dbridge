@@ -189,6 +189,11 @@ public class GetAssignmentStatementHelper {
                 assignStmt.setRHS(constExpr);
                 System.out.println("break for Constant");
                 break;
+            case "BoolOp":
+                IExpr boolOp=new parse.ops.BoolOpParser().parseBoolOp(valueObj);
+                assignStmt.setRHS(boolOp);
+                System.out.println("break for BoolOp");
+                break;
             default :
                 System.out.println(typeofValue+ " still Not implemented in assignment in lineno="+lineno);
                 exit(1);

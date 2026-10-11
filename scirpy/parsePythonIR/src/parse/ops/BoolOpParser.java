@@ -6,6 +6,7 @@ import ir.expr.*;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import parse.CompareParser;
+import parse.GenericExpressionParser;
 
 import static java.lang.System.exit;
 
@@ -35,6 +36,14 @@ public class BoolOpParser{
                     case "BoolOp":
                         BoolOpParser boolOpParser=new BoolOpParser();
                         boolOp.getValues().add(boolOpParser.parseBoolOp(obj));
+                        break;
+                    case "Name":
+                        GenericExpressionParser gepName=new GenericExpressionParser();
+                        boolOp.getValues().add(gepName.getName(obj));
+                        break;
+                    case "Constant":
+                        GenericExpressionParser gepConst=new GenericExpressionParser();
+                        boolOp.getValues().add(gepConst.getConstant(obj));
                         break;
 
                 }
